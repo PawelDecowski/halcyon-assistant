@@ -44,3 +44,13 @@ How it works:
 - **Corrections retire, never delete.** "I eat fish now" retires the vegetarian note and saves a new one; history is kept, the newer note wins.
 - **Everything goes in the prompt.** A member's file is small; no search or embeddings, so nothing is missed because a search didn't find it.
 - **Allergies are safety-critical**: always passed to the restaurant and repeated in the confirmation.
+
+## 5. The mock booking system
+
+- **Inside the app, behind an interface.** The assistant only sees `BookingProvider` (`app/booking/interface.py`): async, JSON-ready results, failures as `BookingError` with a stable code and a `retryable` flag. The mock (`app/booking/mock/`) is one implementation; a real API would be another.
+- **24 invented London restaurants**, varied by area, cuisine, price and atmosphere. Invented so nothing reads as a claim about a real restaurant's availability.
+- **Availability is deterministic** per venue, date and time, so a conversation sees a stable picture. Prime time Thursday to Saturday is scarce, early and late is easy, and each venue has its own demand. Our bookings use up tables.
+- **Rules that test judgement:** deposits and card holds that must be accepted first, maximum party sizes (with private dining for bigger groups), closed days, an omakase counter that can't do dietary needs, a booking window, and late-cancellation charges reported before they apply.
+- **Failures that test reliability**, set by env (`MOCK_TRANSIENT_ERROR_RATE`, `MOCK_SLOT_RACE_RATE`, `MOCK_LATENCY_S`) and off in tests: simulated latency, timeouts (half of them after the booking was written), and a table taken between checking and booking. Every booking carries an idempotency key, so a retry returns the original booking and never makes a second one.
+- **Bookings confirm instantly.** "Pending, the venue will confirm later" would mean follow-ups after the conversation has moved on, which clashes with the 15-second reply rule. Listed under next steps.
+- **`GET /members/{id}/bookings`**, behind the same token, is a review and testing aid, not part of Halcyon's contract: it shows what the booking system actually holds, so practice scenarios and reviewers can check it against what the assistant said.
