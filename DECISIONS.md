@@ -29,3 +29,18 @@ Adaptive, based on how much we know and what is at stake:
 - **Every assumption is stated** in the reply, so the member can correct it in one message.
 
 Out of scope: calendar integration. Simulated members have no calendar, so it would only be a mock. Listed under next steps.
+
+## 4. Memory
+
+What the assistant knows about a member, rebuilt for every reply from three sources:
+
+- **Booking history** from the booking system: always accurate, never stale. Patterns such as their usual time are calculated from it when needed, not stored.
+- **Notes**: dietary needs and allergies, likes and dislikes, people they dine with, occasions, how they like to be served. Only what the member actually said; one Italian booking does not become "loves Italian".
+- **Recent conversations**: excerpts of the last few, so "same as last time" resolves.
+
+How it works:
+
+- **The assistant writes notes during the conversation** with a save action. If practice runs show it missing things, add a background extraction pass after each reply.
+- **Corrections retire, never delete.** "I eat fish now" retires the vegetarian note and saves a new one; history is kept, the newer note wins.
+- **Everything goes in the prompt.** A member's file is small; no search or embeddings, so nothing is missed because a search didn't find it.
+- **Allergies are safety-critical**: always passed to the restaurant and repeated in the confirmation.
