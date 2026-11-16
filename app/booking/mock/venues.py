@@ -56,6 +56,8 @@ ALLERGEN_HANDLING = {
     "shared_kitchen": "Can adapt dishes, but everything is cooked in a shared kitchen: cross-contamination is possible.",
     "separate_preparation": ("Allergy-trained staff, separate preparation area and utensils for allergy orders. "
                              "Suitable for most allergies, but no absolute guarantee."),
+    "coeliac_accredited": ("Separate gluten-free preparation area, staff trained and audited under Coeliac UK's "
+                           "accreditation: safe for coeliacs. Other allergies handled with separate preparation."),
     "dedicated_gluten_free": "The whole kitchen is gluten-free: safe for coeliacs. Other allergies handled with separate preparation.",
 }
 
@@ -95,7 +97,7 @@ VENUES: list[dict] = [
         "description": "Bright, airy fish restaurant with a raw bar and a short, daily-changing menu.",
         "tags": ["relaxed", "lunch", "romantic", "terrace"],
         "dietary": ["gluten-free options", "pescatarian"], "step_free": True,
-        "allergens": "separate_preparation",
+        "allergens": "coeliac_accredited",
         "seatings": schedule(seatings("tue-sun", "12:00-15:00", "17:30-22:00")),
         "max_party": 6, "tables": 8, "demand": 0.5, "table_time_minutes": 120, "policy": FREE_CANCELLATION,
     },
@@ -117,7 +119,7 @@ VENUES: list[dict] = [
         "description": "Inventive plant-led small plates, natural wine, warehouse space with an open kitchen.",
         "tags": ["lively", "natural wine", "small plates", "groups"],
         "dietary": ["vegetarian", "vegan", "gluten-free options"], "step_free": True,
-        "allergens": "separate_preparation",
+        "allergens": "coeliac_accredited",
         "seatings": schedule(seatings("wed-sun", "18:00-22:00"), seatings("sat-sun", "12:00-15:00")),
         "max_party": 10, "tables": 10, "demand": 0.55, "table_time_minutes": 120, "policy": FREE_CANCELLATION,
     },
@@ -273,7 +275,7 @@ VENUES: list[dict] = [
         "description": "Refined regional Indian tasting and à la carte; elegant, quiet room.",
         "tags": ["special occasion", "business", "tasting menu", "quiet"],
         "dietary": ["vegetarian", "vegan", "halal", "gluten-free options"], "step_free": True,
-        "allergens": "separate_preparation",
+        "allergens": "coeliac_accredited",
         "seatings": schedule(seatings("mon-sat", "12:00-14:00", "17:30-22:00")),
         "max_party": 10, "tables": 9, "demand": 0.65, "table_time_minutes": 135, "policy": card_hold(40),
     },

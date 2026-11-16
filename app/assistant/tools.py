@@ -43,7 +43,7 @@ TOOLS: list[dict] = [
                 "cuisine": {"type": "string", "description": "e.g. Italian, seafood, tasting menu."},
                 "keywords": {"type": "string", "description": "Soft wishes: romantic quiet views terrace lively..."},
                 "dietary": {"type": "string", "description": ("A hard need: vegetarian, vegan, halal, gluten-free, "
-                                                              "pescatarian, or coeliac (only kitchens that are fully gluten-free).")},
+                                                              "pescatarian, or coeliac (only kitchens that are coeliac-safe: accredited or fully gluten-free).")},
                 "max_price": {"type": "string", "enum": ["£", "££", "£££", "££££"]},
                 "step_free": {"type": "boolean"},
             },

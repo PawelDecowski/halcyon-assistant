@@ -76,3 +76,14 @@ Halcyon's public member (Oliver: a client lunch, then dinners with his coeliac h
 - **Asked again what was answered; asked about dietary needs too late**: never re-ask; when asking anyway, include dietary needs if unknown.
 - **"Same again" lost the area, and an upcoming dinner was called "last Friday"**: a `places` note category (home, office), "same again" defined in the instructions, and each booking in the member context shows how far away it is ("in 4 days").
 - Not done: venues have no spice information, so "nothing spicy" can only be noted.
+
+## 8. Changes after practice run 2
+
+2 of 3 conversations succeeded (from 1), 7 member messages (from 11), cost about $0.18 (from about $0.63). Remaining failures, all in the third conversation:
+
+- **A relaxed requirement was ignored.** The member accepted "not entirely gluten-free, but safe", and the assistant kept searching only fully gluten-free kitchens. Partly the data: "separate preparation" meant "no guarantee", so only a dedicated kitchen counted as safe. Added a `coeliac_accredited` level (separate preparation, audited: safe for coeliacs) for three venues, including Verdure near Islington; a coeliac search returns both safe levels. Instructions: the latest version of a requirement counts, search again with it.
+- **It said they had been somewhere booked for later in the week.** The member context now labels bookings "not happened yet" and "already happened", and the instructions forbid saying they've been somewhere unless it is a past booking.
+- **Long replies when explaining a failure**, including an unasked-for brunch suggestion: a failure reply is one sentence on why, the closest real option with its trade-off, at most one alternative, no search recap; never suggest a different kind of thing than asked unless the request is impossible.
+- **"Somewhere new" offered last week's venue**: it now rules out every place booked before, unless nothing else is possible and the reply says so.
+
+Caution: the data changes in runs 1 and 2 were shaped by one practice persona. The behaviour rules are what carry over to members we haven't seen.

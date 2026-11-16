@@ -93,13 +93,13 @@ async def member_context(db: Database, provider: BookingProvider, member_id: str
     upcoming = [b for b in bookings if b["status"] == "confirmed" and b["date"] >= today]
     past = [b for b in bookings if b["status"] == "confirmed" and b["date"] < today][-5:]
     cancelled = [b for b in bookings if b["status"] == "cancelled"][-3:]
-    lines.append("\nUpcoming bookings:" if upcoming else "\nNo upcoming bookings.")
+    lines.append("\nUpcoming bookings (not happened yet):" if upcoming else "\nNo upcoming bookings.")
     lines += [line(b) for b in upcoming]
     if past:
-        lines.append("Past bookings, most recent last:")
+        lines.append("Past bookings (already happened), most recent last:")
         lines += [line(b) for b in past]
     if cancelled:
-        lines.append("Recently cancelled:")
+        lines.append("Recently cancelled (did not happen):")
         lines += [line(b) for b in cancelled]
     patterns = booking_patterns(bookings)
     if patterns:

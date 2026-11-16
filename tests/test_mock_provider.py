@@ -195,10 +195,11 @@ def test_late_cancellation_fee_needs_acknowledgement(p):
 
 # -- allergens and cancellation terms (practice run 1) -----------------------------------
 
-def test_coeliac_search_finds_only_fully_gluten_free_kitchens(p):
-    r = run(p.search(date=day(4), party_size=2, dietary="coeliac"))
-    assert r["results"] and all(x["allergens"] == "dedicated_gluten_free" for x in r["results"])
-    assert "v-hearth-and-field" in {x["id"] for x in r["results"]}
+def test_coeliac_search_finds_only_coeliac_safe_kitchens(p):
+    r = run(p.search(date=day(4), party_size=2, dietary="coeliac", limit=30))
+    found = {x["id"]: x["allergens"] for x in r["results"]}
+    assert set(found.values()) == {"coeliac_accredited", "dedicated_gluten_free"}
+    assert {"v-hearth-and-field", "v-verdure"} <= set(found)
     gf = run(p.search(date=day(4), party_size=2, dietary="gluten-free", limit=30))
     assert len(gf["results"]) > len(r["results"])  # "gluten-free options" is a much wider net
 

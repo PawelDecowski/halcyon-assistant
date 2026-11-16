@@ -33,6 +33,7 @@ from ...db import Database, new_id, now_iso
 from ..interface import BookingError, BookingProvider
 from .venues import ALLERGEN_HANDLING, DAYS, VENUES, VENUES_BY_ID
 
+COELIAC_SAFE = {"coeliac_accredited", "dedicated_gluten_free"}
 PRICE_LEVELS = {"£": 1, "££": 2, "£££": 3, "££££": 4}
 MAX_DAYS_AHEAD = 90
 
@@ -250,7 +251,7 @@ class MockBookingProvider(BookingProvider):
             if cuisine and cuisine.lower() not in (v["cuisine"] + " " + " ".join(v["tags"])).lower():
                 continue
             if dietary and any(w in dietary.lower() for w in ("coeliac", "celiac")):
-                if v["allergens"] != "dedicated_gluten_free":  # "gluten-free options" is not coeliac-safe
+                if v["allergens"] not in COELIAC_SAFE:  # "gluten-free options" is not coeliac-safe
                     continue
             elif dietary and not any(dietary.lower() in x.lower() for x in v["dietary"]):
                 continue
