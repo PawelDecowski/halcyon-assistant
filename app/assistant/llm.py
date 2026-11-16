@@ -19,6 +19,20 @@ class LLM(Protocol):
         """One model call. Returns the assistant's content blocks: text and/or tool_use."""
 
 
+def cache_conversation(messages: list[dict]) -> list[dict]:
+    """Mark the end of the conversation for caching, without changing the caller's list.
+
+    A turn makes several calls (search, book, reply), each resending everything
+    so far. With the marker, the next call reads all of that from the cache at a
+    tenth of the input price and pays in full only for what is new.
+    """
+    if not messages or not isinstance(messages[-1]["content"], list) or not messages[-1]["content"]:
+        return messages
+    last = messages[-1]
+    blocks = last["content"][:-1] + [{**last["content"][-1], "cache_control": {"type": "ephemeral"}}]
+    return messages[:-1] + [{**last, "content": blocks}]
+
+
 class ClaudeLLM:
     """Claude through the Anthropic API. Retries rate limits and server errors itself (max_retries)."""
 
@@ -33,7 +47,7 @@ class ClaudeLLM:
         if tools:  # cache the long, unchanging prefix (instructions + tool definitions)
             tools = tools[:-1] + [{**tools[-1], "cache_control": {"type": "ephemeral"}}]
         resp = await self.client.messages.create(model=self.model, max_tokens=1500, system=system,
-                                                 messages=messages, tools=tools)
+                                                 messages=cache_conversation(messages), tools=tools)
         return [b.model_dump(include={"type", "text", "id", "name", "input"}, exclude_none=True)
                 for b in resp.content if b.type in ("text", "tool_use")]
 

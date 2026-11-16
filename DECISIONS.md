@@ -87,3 +87,10 @@ Halcyon's public member (Oliver: a client lunch, then dinners with his coeliac h
 - **"Somewhere new" offered last week's venue**: it now rules out every place booked before, unless nothing else is possible and the reply says so.
 
 Caution: the data changes in runs 1 and 2 were shaped by one practice persona. The behaviour rules are what carry over to members we haven't seen.
+
+## 9. Cost: caching the conversation
+
+Practice run 1 cost about $0.63 for three conversations, several times my estimate. Almost all of it was input: each turn makes several model calls, and each call resends the instructions, tool definitions, member context and the whole conversation so far, including large search results.
+
+- **Done:** the end of the conversation is marked for caching on every call, as well as the instructions and tool definitions. Later calls in a turn read everything already sent at a tenth of the input price. Cache writes cost 25% extra, so a single-call turn costs slightly more, but most turns make several calls. Behaviour is unchanged.
+- **Not yet:** logging tokens and cost per turn, replacing old search results with summaries, leaner search results.
