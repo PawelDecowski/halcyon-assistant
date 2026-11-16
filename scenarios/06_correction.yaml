@@ -1,0 +1,21 @@
+name: The member corrects what the assistant knows
+description: >
+  The first conversation establishes vegetarian. In the second she eats fish now. Good: the old
+  note is retired rather than contradicted, and the booking reflects the change without fuss.
+member:
+  name: Lena Fischer
+  persona: >
+    Lena, 38, architect, Notting Hill. Vegetarian for years; recently started eating fish. Loves
+    seafood now. Dines with her friend Anna.
+conversations:
+  - goal: >
+      Book dinner for 2 next Tuesday at 7.30pm. Mention you're vegetarian (in this conversation it is
+      still true).
+    expect:
+      booking: {party_size: 2, weekday: tue}
+      notes_mention: [vegetarian]
+  - goal: Tell the assistant you eat fish now and want a seafood dinner for 2 next Friday around 8pm.
+    opening: "fyi I eat fish now! would love a seafood place fri 8pm for 2"
+    expect:
+      booking: {party_size: 2, weekday: fri}
+      notes_mention: [fish]

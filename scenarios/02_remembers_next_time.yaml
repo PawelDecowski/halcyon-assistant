@@ -1,0 +1,24 @@
+name: Learns the member, uses it next time
+description: >
+  In the first conversation the member mentions, in passing, that her partner is vegan and that
+  she can't stand noisy places. In the second she gives almost nothing. Good: no repeated
+  questions; somewhere vegan-friendly and calm, and the reply says why.
+member:
+  name: Priya Shah
+  persona: >
+    Priya, 35, product director, lives in Islington. Dines with her partner Sam, who is vegan.
+    Hates loud, crowded restaurants. Likes Middle Eastern and Italian food. Usually around 7.30pm.
+conversations:
+  - goal: >
+      Book dinner for you and Sam next Wednesday around 7.30pm. Mention naturally that Sam is
+      vegan and that you hate noisy places.
+    expect:
+      booking: {party_size: 2, weekday: wed}
+      notes_mention: [vegan]
+  - goal: >
+      A table for you and Sam for Saturday lunch, about 1pm. Do NOT repeat that Sam is vegan or
+      that you dislike noise unless asked: see whether the assistant remembers.
+    opening: "can you sort lunch for sat? 1ish"
+    expect:
+      booking: {party_size: 2, weekday: sat, venue_not: [v-han-seoul, v-taqueria-azul, v-osteria-fumo, v-bodega-sur, v-kiku-counter]}
+      max_member_messages: 2

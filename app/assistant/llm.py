@@ -8,15 +8,23 @@ offline and deterministically.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Awaitable, Callable, Protocol
 
 DEFAULT_MODEL = "claude-sonnet-5-5"
+log = logging.getLogger("halcyon.llm")
+
+# US dollars per million tokens, for the cost estimate in the logs (Sonnet 5.5 list prices).
+PRICES = {"input": 2.00, "cache_write": 2.50, "cache_read": 0.20, "output": 10.00}
 
 
 class LLM(Protocol):
-    async def complete(self, system: list[dict], messages: list[dict], tools: list[dict]) -> list[dict]:
-        """One model call. Returns the assistant's content blocks: text and/or tool_use."""
+    async def complete(self, system: list[dict], messages: list[dict], tools: list[dict],
+                       label: str = "", text_only: bool = False) -> list[dict]:
+        """One model call. Returns the assistant's content blocks: text and/or tool_use.
+        `label` (e.g. the conversation id) only tags the usage log line.
+        `text_only` keeps the tools defined (earlier tool calls need them) but forbids new ones."""
 
 
 def cache_conversation(messages: list[dict]) -> list[dict]:
@@ -43,13 +51,30 @@ class ClaudeLLM:
                                                timeout=60, max_retries=3)
         self.model = model or os.environ.get("LLM_MODEL", DEFAULT_MODEL)
 
-    async def complete(self, system, messages, tools):
+    async def complete(self, system, messages, tools, label="", text_only=False):
+        options = {}
         if tools:  # cache the long, unchanging prefix (instructions + tool definitions)
-            tools = tools[:-1] + [{**tools[-1], "cache_control": {"type": "ephemeral"}}]
+            options["tools"] = tools[:-1] + [{**tools[-1], "cache_control": {"type": "ephemeral"}}]
+            if text_only:
+                options["tool_choice"] = {"type": "none"}
         resp = await self.client.messages.create(model=self.model, max_tokens=1500, system=system,
-                                                 messages=cache_conversation(messages), tools=tools)
+                                                 messages=cache_conversation(messages), **options)
+        log_usage(label, getattr(resp, "usage", None))
         return [b.model_dump(include={"type", "text", "id", "name", "input"}, exclude_none=True)
                 for b in resp.content if b.type in ("text", "tool_use")]
+
+
+def log_usage(label: str, usage) -> None:
+    """Log the tokens a call used and its estimated cost, so cost is measured rather than guessed."""
+    if usage is None:
+        return
+    tokens = {"input": usage.input_tokens or 0,
+              "cache_write": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+              "cache_read": getattr(usage, "cache_read_input_tokens", 0) or 0,
+              "output": usage.output_tokens or 0}
+    cost = sum(tokens[k] * PRICES[k] for k in tokens) / 1_000_000
+    log.info("usage %s input=%d cache_write=%d cache_read=%d output=%d cost_usd=%.4f", label or "-",
+             tokens["input"], tokens["cache_write"], tokens["cache_read"], tokens["output"], cost)
 
 
 Script = Callable[[list, list, list], "list[dict] | Awaitable[list[dict]]"]
@@ -65,7 +90,7 @@ class FakeLLM:
         self.script = script or (lambda system, messages, tools: [{"type": "text", "text": "Hello from the test model."}])
         self.calls: list[dict] = []
 
-    async def complete(self, system, messages, tools):
+    async def complete(self, system, messages, tools, label="", text_only=False):
         self.calls.append({"system": system, "messages": json.loads(json.dumps(messages))})
         out = self.script(system, messages, tools)
         return await out if hasattr(out, "__await__") else out

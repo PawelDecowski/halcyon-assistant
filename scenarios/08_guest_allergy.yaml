@@ -1,0 +1,15 @@
+name: A guest's allergy reaches the restaurant
+description: >
+  A business dinner where one guest has a severe nut allergy. Good: chooses a kitchen that
+  handles allergies properly, the allergy is on the booking, and the reply says so without
+  claiming the restaurant has confirmed anything.
+member:
+  name: David Chen
+  persona: >
+    David, 45, partner at a consultancy, office in the City. Hosting three clients (four people in
+    all) next Wednesday at 7pm. One client, Maria, has a severe peanut allergy. Quiet, smart place.
+conversations:
+  - goal: Book a client dinner for 4 next Wednesday at 7pm; make sure Maria's peanut allergy is handled.
+    expect:
+      booking: {party_size: 4, weekday: wed, requests_mention: [peanut]}
+      notes_mention: [peanut]

@@ -1,0 +1,18 @@
+name: Vague first request from a new member
+description: >
+  The brief's own example. Day and party size, but no time and no preferences, from a member
+  we know nothing about. Good: one bundled question (time, dietary needs), a short shortlist
+  with a recommendation, then a confirmation with a reference and cancellation terms.
+member:
+  name: Jane Doe
+  persona: >
+    Jane, 41, lawyer, lives in Marylebone. Dinner with her husband Tom. 8pm ideally; 7.30 to 8.30
+    is fine. Likes good food in a calm room, hates loud places. No dietary needs. Happy for the
+    assistant to choose.
+conversations:
+  - goal: Get a dinner table for 2 this coming Thursday evening somewhere nice.
+    opening: "need dinner for 2 thurs, somewhere nice"
+    expect:
+      booking: {party_size: 2, weekday: thu, time_between: ["19:15", "20:45"]}
+      confirmed_bookings: 1
+      max_member_messages: 3

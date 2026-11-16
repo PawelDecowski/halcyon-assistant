@@ -44,7 +44,7 @@ class Assistant:
         transcript = transcript + [{"role": "user", "content": [{"type": "text", "text": "\n".join(member_texts)}]}]
         system = await self.instructions(ctx)
         for _ in range(MAX_TOOL_ROUNDS):
-            blocks = await self.llm.complete(system, transcript, TOOLS)
+            blocks = await self.llm.complete(system, transcript, TOOLS, label=ctx.conversation_id)
             calls = [b for b in blocks if b["type"] == "tool_use"]
             reply = _text(blocks)
             if not calls and not reply:  # the API rejects empty assistant messages; nudge instead
@@ -61,7 +61,7 @@ class Assistant:
                 {"type": "tool_result", "tool_use_id": c["id"], "content": r} for c, r in zip(calls, results)]})
         # Too many rounds: one last call without tools, so it has to answer.
         transcript.append({"role": "user", "content": [{"type": "text", "text": NUDGE_FINISH}]})
-        blocks = await self.llm.complete(system, transcript, [])
+        blocks = await self.llm.complete(system, transcript, TOOLS, label=ctx.conversation_id, text_only=True)
         reply = _text(blocks)
         if not reply:
             raise RuntimeError("the model wrote no reply")

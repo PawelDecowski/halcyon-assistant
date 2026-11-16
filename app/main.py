@@ -5,6 +5,7 @@ GET  /conversations/{conversation_id}/messages  -> every message, oldest first
 
 Not part of Halcyon's contract, a review and testing aid behind the same token:
 GET  /members/{member_id}/bookings  -> what the booking system actually holds
+GET  /members/{member_id}/notes     -> what the assistant has learned, including retired notes
 
 POST only stores the message; the reply is written in the background by
 app/worker.py, which runs the assistant in app/assistant/.
@@ -147,6 +148,12 @@ def create_app(api_token: str | None = None, db_path: str | None = None,
     async def member_bookings(member_id: str):
         """Review aid, not part of the contract: what the booking system holds for a member."""
         return {"bookings": await provider.bookings_for_member(member_id)}
+
+    @app.get("/members/{member_id}/notes", dependencies=[Depends(auth)])
+    async def member_notes(member_id: str):
+        """Review aid, not part of the contract: every note on a member, active and retired."""
+        return {"notes": db.query("SELECT id, category, note, active, created_at, retired_at FROM member_notes "
+                                  "WHERE member_id = ? ORDER BY created_at", (member_id,))}
 
     app.state.worker = worker
     return app

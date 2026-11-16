@@ -58,7 +58,7 @@ How it works:
 ## 6. Conversation and reliability
 
 - **One complete reply per turn.** The contract has no typing indicator: any assistant message counts as a reply, and the member answers 15 seconds after the last one. A holding "on it" would be answered before the real reply arrives, and would add to the message count. Halcyon's member waits up to 180 s for a first reply, so silence while working costs nothing. (Next step for a real product: a separate status channel in the contract.)
-- **Bursts are one request.** Each turn starts after a 2-second wait (`BURST_WAIT_S`), and every unanswered message is answered together. Messages arriving mid-turn are answered in the next turn, never dropped.
+- **Bursts are one request.** A turn starts once the member has been quiet for 2 seconds (`BURST_WAIT_S`, at most three such waits), and every unanswered message is answered together. Messages arriving mid-turn are answered in the next turn, never dropped.
 - **A reply within 120 seconds, always** (`TURN_LIMIT_S`). If the model is slow, down or fails, the member gets a truthful fallback built from what the turn actually changed ("I booked X, ref Y, nothing else"), never silence.
 - **Crash-safe turns.** Reply, "handled" marks and the assistant's transcript commit together; an interrupted turn is redone on restart, and booking keys derived from the turn stop a redo from booking twice.
 - **Claude Sonnet** for every turn (`LLM_MODEL`): judgement is most of what is graded. If turns are slow, the first fix is fewer steps per turn, not a smaller model.
@@ -93,8 +93,17 @@ Caution: the data changes in runs 1 and 2 were shaped by one practice persona. T
 Practice run 1 cost about $0.63 for three conversations, several times my estimate. Almost all of it was input: each turn makes several model calls, and each call resends the instructions, tool definitions, member context and the whole conversation so far, including large search results.
 
 - **Done:** the end of the conversation is marked for caching on every call, as well as the instructions and tool definitions. Later calls in a turn read everything already sent at a tenth of the input price. Cache writes cost 25% extra, so a single-call turn costs slightly more, but most turns make several calls. Behaviour is unchanged.
-- **Not yet:** logging tokens and cost per turn, replacing old search results with summaries, leaner search results.
+- **Measured:** every model call logs its tokens (fresh, cache written, cache read, output) and an estimated cost, tagged with the conversation id.
+- **Not yet:** replacing old search results with summaries, leaner search results. Practice runs went from about $0.63 to $0.10 for the same three conversations, from caching plus fewer turns.
 
 ## 10. Changes after practice run 3
 
 All three outcomes good; one conversation still counted as abandoned because, asked for "somewhere new", the assistant recommended a new place but also offered last week's, breaking a rule it had been given. Rules the model can miss are now backed by data: search results mark `previously_booked` venues, and the instructions forbid offering them for "somewhere new" unless there is no other option. Also tightened: allergen handling is described exactly as stated (it had called a gluten-free kitchen suitable for "any dietary need").
+
+## 11. Practice scenarios
+
+Halcyon's public member is one persona; three runs against it risked tuning for Oliver. `scenarios/` holds nine members of our own, each probing a behaviour rather than a venue: a vague first request, memory used next time, an impossible request, a deposit, changes over three conversations, a correction, a burst of messages for a big group, a guest's allergy, and a member who wants no options.
+
+`scripts/simulate.py` plays each member with a model over the real HTTP contract and Halcyon's timing rules (2 s polls, the member answers after 15 s of quiet, 180 s limit, optional duplicate delivery), then checks the review endpoints: the booking really exists with the right day, size, time and requests; notes were saved or retired; the member needed no more than N messages. Checks look at outcomes, not wording, so they survive changes to the instructions.
+
+Building it found a real bug: the burst wait counted from the first message, so a slow burst was answered twice. It now waits for the member to go quiet.

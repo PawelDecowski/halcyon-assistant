@@ -1,8 +1,9 @@
 """Turns member messages into replies, in the background (DECISIONS.md, "Conversation and reliability").
 
 * One turn at a time per conversation. Messages arriving during a turn are
-  answered together in the next one; a short wait before each turn lets a
-  burst ("dinner for 4" / "actually 5" / "fri") be read as one request.
+  answered together in the next one. A turn starts once the member has been
+  quiet for a moment, so a burst ("dinner for 4" / "actually 5" / "fri") is
+  read as one request.
 * Every turn ends in a reply within the time limit. If the model is slow or
   down, the reply is a truthful fallback built from what the turn changed.
 * The reply, the "handled" mark on the messages it answers, and the
@@ -50,10 +51,21 @@ class Worker:
         while running := [t for t in self._tasks.values() if not t.done()]:
             await asyncio.gather(*running, return_exceptions=True)
 
+    async def _quiet(self, conversation_id: str) -> list[dict]:
+        """Wait until no new message has arrived for burst_wait_s (at most three such waits), so a
+        burst is answered once. Returns the unanswered messages."""
+        pending = self.db.unhandled_member_messages(conversation_id)
+        for _ in range(3):
+            await asyncio.sleep(self.burst_wait_s)
+            latest = self.db.unhandled_member_messages(conversation_id)
+            if len(latest) == len(pending):
+                break
+            pending = latest
+        return pending
+
     async def _answer(self, conversation_id: str) -> None:
         while True:
-            await asyncio.sleep(self.burst_wait_s)
-            pending = self.db.unhandled_member_messages(conversation_id)
+            pending = await self._quiet(conversation_id)
             if not pending:
                 return
             try:

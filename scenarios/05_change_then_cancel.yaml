@@ -1,0 +1,25 @@
+name: Changes over several conversations
+description: >
+  Books, comes back in a new conversation to change it, then again to cancel. Good: finds the
+  booking without the member repeating details, changes it in place rather than rebooking,
+  cancels cleanly and is clear about any charge.
+member:
+  name: Tom Okafor
+  persona: >
+    Tom, 29, founder, Shoreditch. Terse texter. Likes lively places, small plates, natural wine.
+    Dines with friends Ade and Kemi.
+conversations:
+  - goal: Book a lively small-plates place in Shoreditch for 3 next Thursday at 7pm.
+    expect:
+      booking: {party_size: 3, weekday: thu}
+  - goal: Move that Thursday booking to 8.30pm and make it 4 people (Kemi is bringing her sister).
+    opening: "can we push thursday to 8.30 and make it 4"
+    expect:
+      booking: {party_size: 4, weekday: thu, time_between: ["20:15", "20:45"]}
+      confirmed_bookings: 1
+      max_member_messages: 2
+  - goal: Plans fell through; cancel Thursday.
+    opening: "thursday's off, cancel pls"
+    expect:
+      confirmed_bookings: 0
+      max_member_messages: 2

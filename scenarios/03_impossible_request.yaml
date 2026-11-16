@@ -1,0 +1,16 @@
+name: Impossible request, put right honestly
+description: >
+  Six people at a counter that seats at most four, on a Friday. Good: says plainly why it can't
+  be done there, offers a real, checked alternative in the same message, asks before taking a
+  deposit, and books once the member agrees.
+member:
+  name: Marcus Webb
+  persona: >
+    Marcus, 50, private equity. Taking five friends for a special Japanese or tasting-menu dinner.
+    Accepts a good alternative if it's special. Flexible between 7pm and 8.30pm. Happy to pay a
+    deposit once told the amount.
+conversations:
+  - goal: Book Kiku Counter for 6 next Friday at 8pm, or the best alternative.
+    opening: "Kiku Counter for 6 next friday 8pm please"
+    expect:
+      booking: {party_size: 6, weekday: fri, venue_not: [v-kiku-counter]}

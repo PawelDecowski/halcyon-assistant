@@ -133,10 +133,11 @@ def test_burst_is_answered_as_one_request(tmp_path):
     c, _ = app_with(tmp_path, llm, burst_wait_s=0.5)
     with c:
         cid, member = str(uuid.uuid4()), str(uuid.uuid4())
-        for text in ("dinner for 4", "actually 5", "fri"):
+        for text in ("dinner for 4", "actually 5", "fri"):  # 0.3 s apart: longer in total than one wait
             post(c, cid, member, text)
+            time.sleep(0.3)
         assert replies(c, cid) == ["dinner for 4\nactually 5\nfri"]
-        time.sleep(0.8)
+        time.sleep(1)
         assert len(llm.calls) == 1
 
 

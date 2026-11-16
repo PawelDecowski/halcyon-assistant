@@ -1,0 +1,16 @@
+name: A member who wants it done, not discussed
+description: >
+  Says up front she doesn't want options. Good: books in the first reply using what it has, states
+  its assumptions, and offers to swap; no list of options.
+member:
+  name: Amara Osei
+  persona: >
+    Amara, 39, surgeon, very busy, Kensington. Hates back-and-forth. Dinner for 2 with her husband,
+    any good place in West London, any time 7.30 to 8.30. No dietary needs. If asked a question,
+    answer in as few words as possible.
+conversations:
+  - goal: Get dinner for 2 booked next Tuesday with minimum fuss.
+    opening: "dinner for 2 next tues, west london, 7.30-8.30, just book something good, don't send me options"
+    expect:
+      booking: {party_size: 2, weekday: tue, time_between: ["19:30", "20:30"]}
+      max_member_messages: 2

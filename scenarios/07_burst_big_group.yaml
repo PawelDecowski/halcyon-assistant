@@ -1,0 +1,17 @@
+name: Big group, sent as a burst
+description: >
+  A 30th birthday for 14, typed as three quick messages. Good: answers the burst once, as one
+  request; finds somewhere that really seats 14; passes the birthday to the restaurant.
+member:
+  name: Sofia Romano
+  persona: >
+    Sofia, 27, marketing, Notting Hill. Organising her sister Giulia's 30th. 14 people, fun and
+    lively, around £50 a head. Any time 7pm to 9pm. Impatient; short messages.
+conversations:
+  - goal: Book a fun birthday dinner for 14 on the Saturday after next.
+    opening:
+      - "need a birthday dinner"
+      - "14 of us"
+      - "sat after next, somewhere fun"
+    expect:
+      booking: {party_size: 14, weekday: sat, requests_mention: [birthday]}
