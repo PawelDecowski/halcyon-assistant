@@ -241,3 +241,17 @@ def test_upcoming_bookings_show_how_far_away(tmp_path):
         replies(c, cid)
     shown = " ".join(b["text"] for b in llm.calls[-1]["system"])
     assert "(in " in shown and "days) 19:30" in shown
+
+
+def test_search_marks_venues_booked_before(tmp_path):
+    c, db_path = app_with(tmp_path, FakeLLM(tool_then_report(
+        "search_restaurants", {"date": day(0), "party_size": 2, "area": "Notting Hill"})))
+    member = str(uuid.uuid4())
+    p = MockBookingProvider(Database(db_path), tz=LONDON)
+    p._book(**{**BOOK_CASA, "member_id": member, "guest_name": "Jane Doe", "idempotency_key": "k"})
+    with c:
+        cid = str(uuid.uuid4())
+        post(c, cid, member, "somewhere new in notting hill?")
+        results = {r["id"]: r for r in json.loads(replies(c, cid)[0])["results"]}
+    assert results["v-casa-lucia"]["previously_booked"].startswith("upcoming booking on Mon ")
+    assert "previously_booked" not in results["v-taqueria-azul"]

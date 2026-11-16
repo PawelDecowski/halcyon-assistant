@@ -94,3 +94,7 @@ Practice run 1 cost about $0.63 for three conversations, several times my estima
 
 - **Done:** the end of the conversation is marked for caching on every call, as well as the instructions and tool definitions. Later calls in a turn read everything already sent at a tenth of the input price. Cache writes cost 25% extra, so a single-call turn costs slightly more, but most turns make several calls. Behaviour is unchanged.
 - **Not yet:** logging tokens and cost per turn, replacing old search results with summaries, leaner search results.
+
+## 10. Changes after practice run 3
+
+All three outcomes good; one conversation still counted as abandoned because, asked for "somewhere new", the assistant recommended a new place but also offered last week's, breaking a rule it had been given. Rules the model can miss are now backed by data: search results mark `previously_booked` venues, and the instructions forbid offering them for "somewhere new" unless there is no other option. Also tightened: allergen handling is described exactly as stated (it had called a gluten-free kitchen suitable for "any dietary need").

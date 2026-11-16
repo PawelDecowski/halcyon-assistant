@@ -32,7 +32,8 @@ TOOLS: list[dict] = [
         "name": "search_restaurants",
         "description": ("Search restaurants with live availability. Use filters only for hard requirements; "
                         "put soft wishes (romantic, quiet, views, lively) in keywords. Each result lists up to 8 "
-                        "available times nearest the requested time."),
+                        "available times nearest the requested time, and previously_booked if the member has "
+                        "booked it before."),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -162,7 +163,18 @@ class ToolRunner:
 
     # -- restaurants ----------------------------------------------------------------------
     async def _search_restaurants(self, ctx, **filters):
-        return await self.provider.search(**filters)
+        """Search, marking any venue the member has booked before, so "somewhere new" can't be missed."""
+        result = await self.provider.search(**filters)
+        today = datetime.now(LONDON).date().isoformat()
+        booked = {}
+        for b in await self.provider.bookings_for_member(ctx.member_id):
+            if b["status"] == "confirmed":
+                when = "upcoming" if b["date"] >= today else "past"
+                booked[b["venue_id"]] = f"{when} booking on {b['weekday'].title()} {b['date']}"
+        for venue in result.get("results", []):
+            if venue["id"] in booked:
+                venue["previously_booked"] = booked[venue["id"]]
+        return result
 
     async def _get_restaurant(self, ctx, venue_id):
         return await self.provider.venue(venue_id)
