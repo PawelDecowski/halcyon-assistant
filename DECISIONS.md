@@ -54,3 +54,13 @@ How it works:
 - **Failures that test reliability**, set by env (`MOCK_TRANSIENT_ERROR_RATE`, `MOCK_SLOT_RACE_RATE`, `MOCK_LATENCY_S`) and off in tests: simulated latency, timeouts (half of them after the booking was written), and a table taken between checking and booking. Every booking carries an idempotency key, so a retry returns the original booking and never makes a second one.
 - **Bookings confirm instantly.** "Pending, the venue will confirm later" would mean follow-ups after the conversation has moved on, which clashes with the 15-second reply rule. Listed under next steps.
 - **`GET /members/{id}/bookings`**, behind the same token, is a review and testing aid, not part of Halcyon's contract: it shows what the booking system actually holds, so practice scenarios and reviewers can check it against what the assistant said.
+
+## 6. Conversation and reliability
+
+- **One complete reply per turn.** The contract has no typing indicator: any assistant message counts as a reply, and the member answers 15 seconds after the last one. A holding "on it" would be answered before the real reply arrives, and would add to the message count. Halcyon's member waits up to 180 s for a first reply, so silence while working costs nothing. (Next step for a real product: a separate status channel in the contract.)
+- **Bursts are one request.** Each turn starts after a 2-second wait (`BURST_WAIT_S`), and every unanswered message is answered together. Messages arriving mid-turn are answered in the next turn, never dropped.
+- **A reply within 120 seconds, always** (`TURN_LIMIT_S`). If the model is slow, down or fails, the member gets a truthful fallback built from what the turn actually changed ("I booked X, ref Y, nothing else"), never silence.
+- **Crash-safe turns.** Reply, "handled" marks and the assistant's transcript commit together; an interrupted turn is redone on restart, and booking keys derived from the turn stop a redo from booking twice.
+- **Claude Sonnet** for every turn (`LLM_MODEL`): judgement is most of what is graded. If turns are slow, the first fix is fewer steps per turn, not a smaller model.
+- **Full record within a conversation**, including searches and their results, so "the second one" refers to something already found.
+- **Rules enforced in code, not only in the instructions:** allergies on file are always added to the restaurant's requests; deposits, card holds and late-cancellation fees need an explicit "member accepted" flag; a second booking the same day needs an explicit flag; members can only change their own bookings.

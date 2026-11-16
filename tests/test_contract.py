@@ -7,6 +7,7 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
+from app.assistant.llm import FakeLLM
 from app.booking.mock.provider import MockBookingProvider
 from app.db import Database
 from app.main import LONDON, create_app
@@ -17,7 +18,7 @@ MEMBER = {"id": str(uuid.uuid4()), "name": "Jane Doe"}
 
 
 def client(tmp_path):
-    return TestClient(create_app(api_token=TOKEN, db_path=str(tmp_path / "t.db")))
+    return TestClient(create_app(api_token=TOKEN, db_path=str(tmp_path / "t.db"), llm=FakeLLM(), burst_wait_s=0))
 
 
 def post(c, cid, text, message_id=None):
@@ -89,6 +90,6 @@ def test_bookings_endpoint_shows_provider_state(tmp_path):
     p = MockBookingProvider(Database(db_path), tz=LONDON)
     from tests.test_mock_provider import book_args
     p._book(**book_args(member_id=MEMBER["id"]))
-    with TestClient(create_app(api_token=TOKEN, db_path=db_path, provider=p)) as c:
+    with TestClient(create_app(api_token=TOKEN, db_path=db_path, provider=p, llm=FakeLLM(), burst_wait_s=0)) as c:
         bookings = c.get(f"/members/{MEMBER['id']}/bookings", headers=H).json()["bookings"]
         assert len(bookings) == 1 and bookings[0]["status"] == "confirmed"

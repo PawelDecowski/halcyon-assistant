@@ -6,13 +6,11 @@ GET  /conversations/{conversation_id}/messages  -> every message, oldest first
 Not part of Halcyon's contract, a review and testing aid behind the same token:
 GET  /members/{member_id}/bookings  -> what the booking system actually holds
 
-Step 1 (deployment check): replies with a fixed placeholder so the whole
-pipeline (Railway, auth, persistence, Halcyon's polling) can be tested before
-any assistant logic exists.
+POST only stores the message; the reply is written in the background by
+app/worker.py, which runs the assistant in app/assistant/.
 """
 from __future__ import annotations
 
-import asyncio
 import hmac
 import logging
 import os
@@ -23,15 +21,15 @@ from zoneinfo import ZoneInfo
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
+from .assistant.agent import Assistant
+from .assistant.llm import LLM, ClaudeLLM
 from .booking.interface import BookingProvider
 from .booking.mock.provider import MockBookingProvider
 from .db import Database
+from .worker import Worker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("halcyon")
-
-PLACEHOLDER = "Thanks, I've got your message. (Test deployment: the assistant isn't connected yet.)"
-
 
 def _uuid(v: str) -> str:
     """Normalise a UUID string, or raise ValueError so pydantic reports a 422."""
@@ -85,38 +83,28 @@ def make_mock_provider(db: Database) -> MockBookingProvider:
 
 
 def create_app(api_token: str | None = None, db_path: str | None = None,
-               provider: BookingProvider | None = None) -> FastAPI:
-    """Build the app. Settings come from env; tests pass them in, plus a provider if they need one."""
+               provider: BookingProvider | None = None, llm: LLM | None = None,
+               burst_wait_s: float | None = None) -> FastAPI:
+    """Build the app. Settings come from env; tests pass them in, plus a provider or model if they need one."""
     api_token = api_token or os.environ.get("API_TOKEN")
     if not api_token:
         raise RuntimeError("API_TOKEN is not set")
     db = Database(db_path or os.environ.get("DB_PATH", "data/halcyon.db"))
     provider = provider or make_mock_provider(db)
-    tasks: dict[str, asyncio.Task] = {}
-
-    async def answer(conversation_id: str) -> None:
-        """Background task: answer every unanswered message in the conversation, then stop."""
-        while pending := db.unhandled_member_messages(conversation_id):
-            with db.transaction():
-                db.insert_assistant_message(conversation_id, PLACEHOLDER)
-                db.mark_handled([m["seq"] for m in pending])
-
-    def schedule(conversation_id: str) -> None:
-        """Start answering a conversation unless a task for it is already running.
-
-        A running task re-reads unanswered messages before it stops, so a
-        message arriving mid-turn is never missed.
-        """
-        task = tasks.get(conversation_id)
-        if not task or task.done():
-            tasks[conversation_id] = asyncio.create_task(answer(conversation_id))
+    if llm is None and not os.environ.get("ANTHROPIC_API_KEY"):
+        raise RuntimeError("ANTHROPIC_API_KEY is not set")  # fail the deploy, not every conversation
+    worker = Worker(db, Assistant(db, provider, llm or ClaudeLLM()),
+                    turn_limit_s=_env_float("TURN_LIMIT_S", 120),
+                    burst_wait_s=_env_float("BURST_WAIT_S", 2) if burst_wait_s is None else burst_wait_s)
 
     @asynccontextmanager
     async def lifespan(app):
-        """On startup, answer anything a crash or deploy left unanswered."""
-        for cid in db.conversations_with_unhandled():  # answer anything a restart left behind
-            schedule(cid)
+        """On startup, answer anything a crash or deploy left unanswered; on shutdown, finish running turns."""
+        recovered = worker.recover()
+        if recovered:
+            log.info("answering %d conversation(s) left unanswered", recovered)
         yield
+        await worker.wait_idle()
 
     app = FastAPI(title="Halcyon assistant", lifespan=lifespan)
 
@@ -147,7 +135,7 @@ def create_app(api_token: str | None = None, db_path: str | None = None,
         db.ensure_conversation(cid, body.member.id)
         created = db.insert_member_message(body.message_id, cid, body.text)
         if created:
-            schedule(cid)
+            worker.schedule(cid)
         return {"status": "accepted", "duplicate": not created}
 
     @app.get("/conversations/{conversation_id}/messages", dependencies=[Depends(auth)])
@@ -160,4 +148,5 @@ def create_app(api_token: str | None = None, db_path: str | None = None,
         """Review aid, not part of the contract: what the booking system holds for a member."""
         return {"bookings": await provider.bookings_for_member(member_id)}
 
+    app.state.worker = worker
     return app

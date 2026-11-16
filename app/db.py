@@ -3,6 +3,7 @@ process and every query here takes well under a millisecond, so a plain
 lock-guarded connection is simpler and safer than a pool."""
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import threading
@@ -33,6 +34,25 @@ CREATE TABLE IF NOT EXISTS messages (
     handled INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ix_msg_conv ON messages(conversation_id, seq);
+-- What the assistant has learned about a member. Corrections retire a note
+-- (active = 0) rather than delete it, so the history is kept.
+CREATE TABLE IF NOT EXISTS member_notes (
+    id TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    note TEXT NOT NULL,
+    conversation_id TEXT,
+    created_at TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    retired_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_notes_member ON member_notes(member_id, active);
+-- The assistant's working record of a conversation, including its searches
+-- and tool results. Never shown to the member.
+CREATE TABLE IF NOT EXISTS transcripts (
+    conversation_id TEXT PRIMARY KEY,
+    transcript TEXT NOT NULL
+);
 """
 
 
@@ -47,7 +67,7 @@ def new_id() -> str:
 
 
 class Database:
-    """The app's storage: members, conversations and messages.
+    """The app's storage: members, conversations, messages, notes and transcripts.
 
     Every method takes the lock, so it is safe to call from request handlers
     and background tasks alike. Use transaction() to group writes atomically.
@@ -163,6 +183,51 @@ class Database:
             "SELECT DISTINCT conversation_id FROM messages WHERE role = 'member' AND handled = 0"
         )
         return [r["conversation_id"] for r in rows]
+
+
+    # -- the assistant's working record --------------------------------------------
+    def load_transcript(self, conversation_id: str) -> list[dict]:
+        """The assistant's full record of a conversation (messages plus tool calls), or [] if new."""
+        row = self.one("SELECT transcript FROM transcripts WHERE conversation_id = ?", (conversation_id,))
+        return json.loads(row["transcript"]) if row else []
+
+    def save_transcript(self, conversation_id: str, transcript: list[dict]) -> None:
+        """Replace the stored record. Called in the same transaction as the reply it led to."""
+        self.execute(
+            "INSERT INTO transcripts (conversation_id, transcript) VALUES (?, ?) "
+            "ON CONFLICT(conversation_id) DO UPDATE SET transcript = excluded.transcript",
+            (conversation_id, json.dumps(transcript)),
+        )
+
+    # -- member notes ------------------------------------------------------------------
+    def active_notes(self, member_id: str) -> list[dict]:
+        """Notes currently believed true about the member, by category then age."""
+        return self.query("SELECT id, category, note, created_at FROM member_notes WHERE member_id = ? "
+                          "AND active = 1 ORDER BY category, created_at", (member_id,))
+
+    def add_note(self, member_id: str, category: str, note: str, conversation_id: str | None) -> str:
+        """Save a note and return its id."""
+        note_id = new_id()
+        self.execute("INSERT INTO member_notes (id, member_id, category, note, conversation_id, created_at) "
+                     "VALUES (?, ?, ?, ?, ?, ?)", (note_id, member_id, category, note, conversation_id, now_iso()))
+        return note_id
+
+    def retire_note(self, member_id: str, note_id: str) -> bool:
+        """Retire an active note of this member. Returns False if there was no such note."""
+        cur = self.execute("UPDATE member_notes SET active = 0, retired_at = ? WHERE id = ? AND member_id = ? "
+                           "AND active = 1", (now_iso(), note_id, member_id))
+        return cur.rowcount == 1
+
+    def recent_conversations(self, member_id: str, exclude_id: str, limit: int) -> list[dict]:
+        """The member's latest other conversations, newest first."""
+        return self.query("SELECT id, created_at FROM conversations WHERE member_id = ? AND id != ? "
+                          "ORDER BY created_at DESC LIMIT ?", (member_id, exclude_id, limit))
+
+    def last_messages(self, conversation_id: str, limit: int) -> list[dict]:
+        """The last `limit` messages of a conversation, oldest first."""
+        rows = self.query("SELECT role, text FROM messages WHERE conversation_id = ? ORDER BY seq DESC LIMIT ?",
+                          (conversation_id, limit))
+        return rows[::-1]
 
 
 class _Tx:
