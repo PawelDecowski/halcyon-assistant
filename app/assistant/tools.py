@@ -24,8 +24,8 @@ from ..booking.interface import BookingError, BookingProvider
 from ..db import Database
 
 LONDON = ZoneInfo("Europe/London")
-NOTE_CATEGORIES = ["allergies", "dietary", "likes", "dislikes", "people", "occasions", "service_style",
-                   "feedback", "other"]
+NOTE_CATEGORIES = ["allergies", "dietary", "likes", "dislikes", "people", "places", "occasions",
+                   "service_style", "feedback", "other"]
 
 TOOLS: list[dict] = [
     {
@@ -42,7 +42,8 @@ TOOLS: list[dict] = [
                 "area": {"type": "string", "description": "London neighbourhood, e.g. Soho, Mayfair, Chelsea."},
                 "cuisine": {"type": "string", "description": "e.g. Italian, seafood, tasting menu."},
                 "keywords": {"type": "string", "description": "Soft wishes: romantic quiet views terrace lively..."},
-                "dietary": {"type": "string", "description": "A hard need: vegetarian, vegan, halal, gluten-free, pescatarian."},
+                "dietary": {"type": "string", "description": ("A hard need: vegetarian, vegan, halal, gluten-free, "
+                                                              "pescatarian, or coeliac (only kitchens that are fully gluten-free).")},
                 "max_price": {"type": "string", "enum": ["£", "££", "£££", "££££"]},
                 "step_free": {"type": "boolean"},
             },
@@ -117,7 +118,8 @@ TOOLS: list[dict] = [
         "input_schema": {
             "type": "object",
             "properties": {"category": {"type": "string", "enum": NOTE_CATEGORIES},
-                           "note": {"type": "string", "description": "One short line, e.g. 'Partner Sam is vegan'."}},
+                           "note": {"type": "string", "description": ("One short line, e.g. 'Husband Sam is coeliac: "
+                                                                      "needs a coeliac-safe kitchen' or 'Lives in Islington'.")}},
             "required": ["category", "note"],
         },
     },

@@ -64,3 +64,15 @@ How it works:
 - **Claude Sonnet** for every turn (`LLM_MODEL`): judgement is most of what is graded. If turns are slow, the first fix is fewer steps per turn, not a smaller model.
 - **Full record within a conversation**, including searches and their results, so "the second one" refers to something already found.
 - **Rules enforced in code, not only in the instructions:** allergies on file are always added to the restaurant's requests; deposits, card holds and late-cancellation fees need an explicit "member accepted" flag; a second booking the same day needs an explicit flag; members can only change their own bookings.
+
+## 7. Changes after practice run 1
+
+Halcyon's public member (Oliver: a client lunch, then dinners with his coeliac husband) scored 1 of 3 conversations as succeeded. Causes and fixes:
+
+- **The data could not satisfy a coeliac.** Every venue said only "gluten-free options", so a good outcome was impossible and the honest assistant failed the outcome. Venues now carry an allergen-handling level (`cannot_accommodate`, `shared_kitchen`, `separate_preparation`, `dedicated_gluten_free`); searching for "coeliac" finds only fully gluten-free kitchens. Added Hearth & Field, Islington, which has one.
+- **It implied it had asked the restaurant.** A booking note is one-way; the instructions now say so and forbid claiming the restaurant was asked or will confirm.
+- **It miscalculated a cancellation deadline**, and the mock's free-cancellation venues claimed a 24-hour window that cost nothing to miss. The provider now works out the terms for every booking ("Free to cancel until Thursday 19 November, 7.30pm. After that, £80 is charged" or "Already inside the window"), and the assistant repeats them. Free venues are now simply free to cancel any time.
+- **Replies too long** for a member who writes two or three sentences: match the member's length, one recommendation and at most two one-line alternatives, no unasked-for details.
+- **Asked again what was answered; asked about dietary needs too late**: never re-ask; when asking anyway, include dietary needs if unknown.
+- **"Same again" lost the area, and an upcoming dinner was called "last Friday"**: a `places` note category (home, office), "same again" defined in the instructions, and each booking in the member context shows how far away it is ("in 4 days").
+- Not done: venues have no spice information, so "nothing spicy" can only be noted.

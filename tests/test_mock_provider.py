@@ -191,3 +191,37 @@ def test_late_cancellation_fee_needs_acknowledgement(p):
     done = run(p.cancel(b["reference"], accept_fee=True))
     assert done["status"] == "cancelled" and done["cancellation"]["fee_gbp"] == 100
     assert run(p.cancel(b["reference"]))["already_cancelled"] is True
+
+
+# -- allergens and cancellation terms (practice run 1) -----------------------------------
+
+def test_coeliac_search_finds_only_fully_gluten_free_kitchens(p):
+    r = run(p.search(date=day(4), party_size=2, dietary="coeliac"))
+    assert r["results"] and all(x["allergens"] == "dedicated_gluten_free" for x in r["results"])
+    assert "v-hearth-and-field" in {x["id"] for x in r["results"]}
+    gf = run(p.search(date=day(4), party_size=2, dietary="gluten-free", limit=30))
+    assert len(gf["results"]) > len(r["results"])  # "gluten-free options" is a much wider net
+
+
+def test_venue_details_explain_allergen_handling(p):
+    larder = run(p.venue("v-the-larder"))["allergens"]
+    assert larder["handling"] == "shared_kitchen" and "cross-contamination is possible" in larder["detail"]
+    assert "Coeliac UK accredited" in run(p.venue("v-hearth-and-field"))["allergens"]["detail"]
+
+
+def test_cancellation_terms_are_worked_out_by_the_provider(p):
+    free = run(p.book(**book_args()))
+    assert free["cancellation"] == "Free to cancel any time before the booking."
+    held = run(p.book(**book_args(venue_id="v-jade-pavilion", time="12:00", party_size=3, idempotency_key="k2",
+                                  policy_acknowledged=True)))
+    assert held["cancellation"].startswith("Free to cancel until ")
+    assert "£120 is charged (£40 per person)" in held["cancellation"] and held["free_cancellation_until"]
+
+
+def test_booking_inside_the_window_says_so(p):
+    b = p._book(**book_args(venue_id="v-jade-pavilion", time="12:00", policy_acknowledged=True))
+    booked_for = datetime.fromisoformat(f"{b['date']}T12:00").replace(tzinfo=LONDON)
+    p._now = lambda: booked_for - timedelta(hours=3)  # three hours before: inside the 24-hour window
+    b = run(p.bookings_for_member("m"))[0]
+    assert b["cancellation"].startswith("Already inside the 24-hour cancellation window")
+    assert b["free_cancellation_until"] is None

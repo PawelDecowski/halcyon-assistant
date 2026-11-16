@@ -11,7 +11,7 @@ Three sources (DECISIONS.md, "Memory"):
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 
 from ..booking.interface import BookingProvider
 from ..db import Database
@@ -29,6 +29,18 @@ def _minutes(hhmm: str) -> int:
 
 def _hhmm(minutes: int) -> str:
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def _when(day: date, today: date) -> str:
+    """'today', 'tomorrow', 'in 4 days', 'yesterday', '12 days ago': so upcoming is never mistaken for past."""
+    delta = (day - today).days
+    if delta == 0:
+        return "today"
+    if delta == 1:
+        return "tomorrow"
+    if delta == -1:
+        return "yesterday"
+    return f"in {delta} days" if delta > 0 else f"{-delta} days ago"
 
 
 def booking_patterns(bookings: list[dict]) -> list[str]:
@@ -69,13 +81,14 @@ async def member_context(db: Database, provider: BookingProvider, member_id: str
     else:
         lines.append("\nNothing saved about them yet: treat them as a new member and learn as you go.")
 
-    today = datetime.now(LONDON).date().isoformat()
+    today_date = datetime.now(LONDON).date()
+    today = today_date.isoformat()
     bookings = await provider.bookings_for_member(member_id)
 
     def line(b: dict) -> str:
         extra = f", requests: {b['special_requests']}" if b.get("special_requests") else ""
         return (f"- {b['reference']}: {b['venue_name']} ({b['area']}), {b['weekday'].title()} {b['date']} "
-                f"{b['time']}, party of {b['party_size']}{extra}")
+                f"({_when(date.fromisoformat(b['date']), today_date)}) {b['time']}, party of {b['party_size']}{extra}")
 
     upcoming = [b for b in bookings if b["status"] == "confirmed" and b["date"] >= today]
     past = [b for b in bookings if b["status"] == "confirmed" and b["date"] < today][-5:]

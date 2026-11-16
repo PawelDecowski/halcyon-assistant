@@ -227,3 +227,17 @@ def test_booking_patterns():
     assert "vary" in booking_patterns([b("18:00"), b("21:30")])[0]
     assert any("Usual party size: 2" in line for line in booking_patterns([b("19:45"), b("20:15")]))
     assert booking_patterns([b("20:00", status="cancelled")]) == []
+
+
+def test_upcoming_bookings_show_how_far_away(tmp_path):
+    llm = FakeLLM()
+    c, db_path = app_with(tmp_path, llm)
+    member = str(uuid.uuid4())
+    p = MockBookingProvider(Database(db_path), tz=LONDON)
+    p._book(**{**BOOK_CASA, "member_id": member, "guest_name": "Jane Doe", "idempotency_key": "k"})
+    with c:
+        cid = str(uuid.uuid4())
+        post(c, cid, member, "same again next week?")
+        replies(c, cid)
+    shown = " ".join(b["text"] for b in llm.calls[-1]["system"])
+    assert "(in " in shown and "days) 19:30" in shown

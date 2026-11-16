@@ -31,7 +31,7 @@ from datetime import date as Date, datetime, time as Time, timedelta
 
 from ...db import Database, new_id, now_iso
 from ..interface import BookingError, BookingProvider
-from .venues import DAYS, VENUES, VENUES_BY_ID
+from .venues import ALLERGEN_HANDLING, DAYS, VENUES, VENUES_BY_ID
 
 PRICE_LEVELS = {"£": 1, "££": 2, "£££": 3, "££££": 4}
 MAX_DAYS_AHEAD = 90
@@ -77,6 +77,13 @@ def _fmt(t: Time) -> str:
     return t.strftime("%H:%M")
 
 
+def _human(dt: datetime) -> str:
+    """'Thursday 19 November, 7.30pm': the form the assistant uses with members."""
+    hour = dt.hour % 12 or 12
+    minutes = f".{dt.minute:02d}" if dt.minute else ""
+    return f"{dt.strftime('%A')} {dt.day} {dt.strftime('%B')}, {hour}{minutes}{'am' if dt.hour < 12 else 'pm'}"
+
+
 def _minutes(t: Time) -> int:
     return t.hour * 60 + t.minute
 
@@ -91,6 +98,10 @@ class MockBookingProvider(BookingProvider):
         self.latency_s = latency_s
         db.executescript(SCHEMA)
 
+    def _now(self) -> datetime:
+        """The current time in London; tests replace it to check time-dependent terms."""
+        return datetime.now(self.tz)
+
     async def _network(self) -> None:
         """Simulated round trip to the third party."""
         if self.latency_s:
@@ -103,11 +114,19 @@ class MockBookingProvider(BookingProvider):
             raise BookingError("unknown_venue", f"No venue with id {venue_id!r}")
         return v
 
+    def _allergens(self, v: dict) -> dict:
+        """How the kitchen handles allergies: a level and what it means for the guest."""
+        detail = ALLERGEN_HANDLING[v["allergens"]]
+        if v.get("allergen_note"):
+            detail += " " + v["allergen_note"]
+        return {"handling": v["allergens"], "detail": detail}
+
     def _public_venue(self, v: dict) -> dict:
         """Venue details as a guest would see them: no internal fields like demand or tables."""
         p = v["policy"]
-        policy = {"booking": p["mode"], "cancellation_window_hours": p["cancellation_hours"],
-                  "table_time_minutes": v["table_time_minutes"]}
+        policy = {"booking": p["mode"], "table_time_minutes": v["table_time_minutes"]}
+        if p["cancellation_hours"]:
+            policy["cancellation_window_hours"] = p["cancellation_hours"]
         if p["deposit_pp_gbp"]:
             policy["deposit_per_person_gbp"] = p["deposit_pp_gbp"]
         if p["cancellation_fee_pp_gbp"]:
@@ -116,6 +135,7 @@ class MockBookingProvider(BookingProvider):
                                  "description", "tags", "dietary", "step_free", "max_party")}
         out["opening"] = {d: [f"{a}-{b}" for a, b in v["seatings"].get(d, [])] or "closed" for d in DAYS}
         out["policy"] = policy
+        out["allergens"] = self._allergens(v)
         if v.get("notes"):
             out["notes"] = v["notes"]
         if v.get("private_dining_max"):
@@ -229,7 +249,10 @@ class MockBookingProvider(BookingProvider):
                 continue
             if cuisine and cuisine.lower() not in (v["cuisine"] + " " + " ".join(v["tags"])).lower():
                 continue
-            if dietary and not any(dietary.lower() in x.lower() for x in v["dietary"]):
+            if dietary and any(w in dietary.lower() for w in ("coeliac", "celiac")):
+                if v["allergens"] != "dedicated_gluten_free":  # "gluten-free options" is not coeliac-safe
+                    continue
+            elif dietary and not any(dietary.lower() in x.lower() for x in v["dietary"]):
                 continue
             if PRICE_LEVELS[v["price"]] > max_level:
                 continue
@@ -248,6 +271,8 @@ class MockBookingProvider(BookingProvider):
         for score, _, v, times, reason in results[:limit]:
             item = {k: v[k] for k in ("id", "name", "area", "cuisine", "price", "avg_spend_pp_gbp", "tags")}
             item["summary"] = v["description"]
+            item["dietary"] = v["dietary"]
+            item["allergens"] = v["allergens"]
             item["available_times"] = times
             if reason:
                 item["unavailable_reason"] = reason
@@ -394,9 +419,31 @@ class MockBookingProvider(BookingProvider):
                 "weekday": DAYS[_parse_date(row["date"]).weekday()], "time": row["time"],
                 "party_size": row["party_size"], "guest_name": row["guest_name"],
                 "special_requests": row["special_requests"], "deposit_gbp": row["deposit_gbp"],
-                "policy": self._policy_line(v) if v["policy"]["mode"] != "instant" else
-                f"Free cancellation up to {v['policy']['cancellation_hours']}h before."}
+                **self._cancellation_terms(v, row)}
 
+    def _cancellation_terms(self, v: dict, row: dict) -> dict:
+        """The cancellation terms of a booking as of now, worked out here so nobody else has to.
+
+        Returns `cancellation` (a sentence to pass on to the guest) and
+        `free_cancellation_until` (local time, or None if there is no deadline or it has passed).
+        """
+        p = v["policy"]
+        start = datetime.combine(_parse_date(row["date"]), _parse_time(row["time"]), self.tz)
+        if row["status"] != "confirmed":
+            return {"cancellation": None, "free_cancellation_until": None}
+        if not p["cancellation_hours"]:
+            return {"cancellation": "Free to cancel any time before the booking.", "free_cancellation_until": None}
+        deadline = start - timedelta(hours=p["cancellation_hours"])
+        if p["mode"] == "deposit":
+            cost = f"the £{row['deposit_gbp']} deposit is kept"
+        else:
+            cost = f"£{p['cancellation_fee_pp_gbp'] * row['party_size']} is charged (£{p['cancellation_fee_pp_gbp']} per person)"
+        if self._now() < deadline:
+            return {"cancellation": f"Free to cancel until {_human(deadline)}. After that, or for a no-show, {cost}.",
+                    "free_cancellation_until": deadline.strftime("%Y-%m-%d %H:%M")}
+        return {"cancellation": f"Already inside the {p['cancellation_hours']}-hour cancellation window: "
+                                f"if cancelled or a no-show, {cost}.",
+                "free_cancellation_until": None}
 
     # -- the BookingProvider interface --------------------------------------------
     async def search(self, *, date: str, party_size: int, time: str | None = None, area: str | None = None,
