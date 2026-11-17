@@ -65,7 +65,7 @@ Conversation caching and fewer turns account for the cost drop. To avoid tuning 
 - `app/assistant/prompt.py`: the assistant's behaviour in plain English.
 - `app/booking/mock/`: the mock provider and its venues.
 - `app/assistant/tools.py`: the rules enforced in code.
-- `tests/`: 42 tests, offline, with a scripted model.
+- `tests/`: offline tests with a scripted model; no API key needed.
 - Review endpoints, not part of the contract, behind the same token: `GET /members/{id}/bookings` and `GET /members/{id}/notes`.
 
 ## Running it

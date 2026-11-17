@@ -226,3 +226,13 @@ def test_booking_inside_the_window_says_so(p):
     b = run(p.bookings_for_member("m"))[0]
     assert b["cancellation"].startswith("Already inside the 24-hour cancellation window")
     assert b["free_cancellation_until"] is None
+
+
+def test_search_never_hides_bookable_venues_behind_unbookable_ones(p):
+    """Practice: keyword matches that couldn't seat 16 filled the list and hid Anatolia, which could."""
+    r = run(p.search(date=day(5), party_size=16, time="19:30", keywords="fun lively birthday"))
+    bookable = [x for x in r["results"] if x["available_times"]]
+    assert len(bookable) == r["available"] >= 2
+    assert {"v-anatolia", "v-taqueria-azul"} <= {x["id"] for x in bookable}
+    assert r["results"][:len(bookable)] == bookable  # bookable first
+    assert len(r["results"]) - len(bookable) <= 2  # at most two that can't, with reasons

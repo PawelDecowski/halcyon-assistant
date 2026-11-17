@@ -33,7 +33,8 @@ TOOLS: list[dict] = [
         "description": ("Search restaurants with live availability. Use filters only for hard requirements; "
                         "put soft wishes (romantic, quiet, views, lively) in keywords. Each result lists up to 8 "
                         "available times nearest the requested time, and previously_booked if the member has "
-                        "booked it before."),
+                        "booked it before. Venues with tables come first; 'available' counts all of them, and "
+                        "more_available says when some aren't shown."),
         "input_schema": {
             "type": "object",
             "properties": {

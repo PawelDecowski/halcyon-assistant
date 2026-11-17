@@ -107,3 +107,11 @@ Halcyon's public member is one persona; three runs against it risked tuning for 
 `scripts/simulate.py` plays each member with a model over the real HTTP contract and Halcyon's timing rules (2 s polls, the member answers after 15 s of quiet, 180 s limit, optional duplicate delivery), then checks the review endpoints: the booking really exists with the right day, size, time and requests; notes were saved or retired; the member needed no more than N messages. Checks look at outcomes, not wording, so they survive changes to the instructions.
 
 Building it found a real bug: the burst wait counted from the first message, so a slow burst was answered twice. It now waits for the member to go quiet.
+
+## 12. Changes after run 4 and the first custom scenario
+
+Run 4 (Oliver): every finding good except a five-paragraph confirmation; conversation 3 still "abandoned", most likely because no new coeliac-safe kitchen exists in Islington in our data. Deliberately not "fixed" by adding one: that would tune the data to one persona.
+
+Custom scenario (a birthday growing from 12 to 14 to 16 people) succeeded, but reading it closely found a bug they didn't flag: the assistant called one venue "the only place that can seat 16" when Anatolia also could. The mock's search ranked keyword matches above availability, so venues that couldn't seat 16 filled the result list and hid it. Search now lists venues with tables first, at most two that can't (with the reason), and says when more are available. The instructions forbid "the only option" unless the search shows none other.
+
+Also tightened: never ask what the occasion makes obvious (it asked "romantic or lively?" for a sister's 30th); mention allergen handling only when someone has an allergy or a dietary need it affects; a confirmation is the booking lines, terms, what was passed on and at most one more sentence.

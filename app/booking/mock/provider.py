@@ -267,9 +267,14 @@ class MockBookingProvider(BookingProvider):
             except BookingError as e:
                 times, reason = [], e.message
             results.append((score, bool(times), v, times, reason))
-        results.sort(key=lambda r: (-r[0], not r[1]))
+        # Venues that can take the booking come first, best keyword match first. A few that can't
+        # follow, with the reason, only if there is room: they must never crowd out real options.
+        bookable = sorted((r for r in results if r[1]), key=lambda r: -r[0])
+        unbookable = sorted((r for r in results if not r[1]), key=lambda r: -r[0])
+        shown = bookable[:limit]
+        shown += unbookable[:min(2, limit - len(shown))]
         out = []
-        for score, _, v, times, reason in results[:limit]:
+        for score, _, v, times, reason in shown:
             item = {k: v[k] for k in ("id", "name", "area", "cuisine", "price", "avg_spend_pp_gbp", "tags")}
             item["summary"] = v["description"]
             item["dietary"] = v["dietary"]
@@ -281,7 +286,10 @@ class MockBookingProvider(BookingProvider):
                 item["policy_note"] = self._policy_line(v)
             out.append(item)
         resp = {"date": d.isoformat(), "weekday": DAYS[d.weekday()], "party_size": party_size,
-                "matched": len(results), "results": out}
+                "matched": len(results), "available": len(bookable), "results": out}
+        if len(bookable) > limit:
+            resp["more_available"] = (f"{len(bookable) - limit} more venues have tables; "
+                                      "narrow the search or raise the limit to see them.")
         if not results:
             resp["known_areas"] = sorted({v["area"] for v in VENUES})
             resp["known_cuisines"] = sorted({v["cuisine"] for v in VENUES})
