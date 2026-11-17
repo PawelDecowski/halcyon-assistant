@@ -27,7 +27,7 @@ One container on Railway, SQLite on a volume. The work happens after the respons
 
 **Honesty.** A booking exists only if the provider confirmed it. A note to a restaurant is one-way, so the assistant never claims a restaurant was asked or will confirm. Cancellation terms are worked out by the provider and repeated, not calculated by the model. If a turn fails, the member is told exactly what was already done.
 
-**Rules in code, not just in the prompt.** Allergies on file are always added to the restaurant's requests; spending money needs an explicit "member accepted" flag; a second booking the same day needs confirmation; members can only touch their own bookings; venues booked before are marked so "somewhere new" can't be missed.
+**Rules in code, not just in the prompt.** The member's own allergies are always added to the restaurant's requests (a guest's only when that guest is coming); spending money needs an explicit "member accepted" flag; a second booking the same day needs confirmation; members can only touch their own bookings; venues booked before are marked so "somewhere new" can't be missed.
 
 **Reliability.** Repeated deliveries are stored and answered once. A turn starts when the member goes quiet for 2 seconds, so a burst is one request. Every turn replies within 120 seconds, falling back to a truthful message if the model is slow or down. Reply, "handled" marks and transcript commit together; a crash means the turn is redone on restart, and booking idempotency keys derived from the turn stop a redo from booking twice. One reply per turn, no "on it" messages: the contract has no typing indicator, so a holding message would be answered before the real one.
 

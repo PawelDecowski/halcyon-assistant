@@ -116,6 +116,10 @@ Custom scenario (a birthday growing from 12 to 14 to 16 people) succeeded, but r
 
 Also tightened: never ask what the occasion makes obvious (it asked "romantic or lively?" for a sister's 30th); mention allergen handling only when someone has an allergy or a dietary need it affects; a confirmation is the booking lines, terms, what was passed on and at most one more sentence.
 
+## 13. Guests' allergies are not the member's
+
+A custom scenario (David, a client dinner where his client Maria has a severe peanut allergy) went well, but showed a flaw in decision 6: every allergy on file was added to every future booking, so Maria's allergy would have followed David to dinner with his wife. Now only the member's own allergies (category `allergies`) are added automatically. Someone else's is saved under `people` with their name and passed on, by the assistant, only when that person is coming.
+
 ## Parked, to review
 
 - **Show the trade-off both ways.** When the member names a venue and their time isn't free there, also offer a comparable venue that has their time ("if 7.30 matters more than Maison Bastide, Ember & Oak has 7.30"), so they choose between venue and time, not only between times. From the deposit custom scenario: Charlotte wanted 7 to 8pm and got 8.15pm. One instruction line; risk is longer replies.

@@ -4,7 +4,10 @@ Rules enforced here in code, not left to the model:
 * Booking idempotency keys are derived from (conversation, turn, venue, date,
   time, party). A retry after a timeout, or the whole turn redone after a
   crash, returns the original booking and never makes a second one.
-* Allergies on file are always added to the restaurant's special requests.
+* The member's own allergies (notes in "allergies") are always added to the
+  restaurant's special requests. Other people's allergies are saved under
+  "people" and passed on only when that person is coming, since they aren't
+  at every booking.
 * Spending the member's money (deposits, card holds, late-cancellation fees)
   needs an explicit "accepted by member" flag; the instructions say to set it
   only after the member said yes.
@@ -116,12 +119,14 @@ TOOLS: list[dict] = [
     {
         "name": "save_member_note",
         "description": ("Remember something lasting the member told you, for future conversations. Only what they "
-                        "said, in their terms; not guesses, not details of a single booking."),
+                        "said, in their terms; not guesses, not details of a single booking. 'allergies' is for the "
+                        "member's own allergies only (added to every booking); someone else's goes under 'people'."),
         "input_schema": {
             "type": "object",
             "properties": {"category": {"type": "string", "enum": NOTE_CATEGORIES},
                            "note": {"type": "string", "description": ("One short line, e.g. 'Husband Sam is coeliac: "
-                                                                      "needs a coeliac-safe kitchen' or 'Lives in Islington'.")}},
+                                                                      "needs a coeliac-safe kitchen', 'Client Maria: severe "
+                                                                      "peanut allergy' or 'Lives in Islington'.")}},
             "required": ["category", "note"],
         },
     },
@@ -209,7 +214,8 @@ class ToolRunner:
         return result
 
     def _with_allergies(self, member_id: str, requests: str | None) -> str | None:
-        """Add the member's allergy notes to the restaurant's special requests, whatever the model wrote."""
+        """Add the member's own allergy notes to the restaurant's special requests, whatever the model wrote.
+        Guests' allergies are under "people" and are not added here."""
         allergies = [n["note"] for n in self.db.active_notes(member_id) if n["category"] == "allergies"]
         missing = [a for a in allergies if a.lower() not in (requests or "").lower()]
         if not missing:

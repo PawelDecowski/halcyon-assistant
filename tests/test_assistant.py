@@ -146,6 +146,7 @@ def test_allergies_always_reach_the_restaurant(tmp_path):
                                                                              "special_requests": "Anniversary"})))
     member = str(uuid.uuid4())
     Database(db_path).add_note(member, "allergies", "Severe peanut allergy", None)
+    Database(db_path).add_note(member, "people", "Client Maria: shellfish allergy", None)  # a guest: not every booking
     with c:
         cid = str(uuid.uuid4())
         post(c, cid, member, "book it")
