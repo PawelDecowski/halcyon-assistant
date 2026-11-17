@@ -115,3 +115,7 @@ Run 4 (Oliver): every finding good except a five-paragraph confirmation; convers
 Custom scenario (a birthday growing from 12 to 14 to 16 people) succeeded, but reading it closely found a bug they didn't flag: the assistant called one venue "the only place that can seat 16" when Anatolia also could. The mock's search ranked keyword matches above availability, so venues that couldn't seat 16 filled the result list and hid it. Search now lists venues with tables first, at most two that can't (with the reason), and says when more are available. The instructions forbid "the only option" unless the search shows none other.
 
 Also tightened: never ask what the occasion makes obvious (it asked "romantic or lively?" for a sister's 30th); mention allergen handling only when someone has an allergy or a dietary need it affects; a confirmation is the booking lines, terms, what was passed on and at most one more sentence.
+
+## Parked, to review
+
+- **Show the trade-off both ways.** When the member names a venue and their time isn't free there, also offer a comparable venue that has their time ("if 7.30 matters more than Maison Bastide, Ember & Oak has 7.30"), so they choose between venue and time, not only between times. From the deposit custom scenario: Charlotte wanted 7 to 8pm and got 8.15pm. One instruction line; risk is longer replies.
