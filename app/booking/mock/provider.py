@@ -34,6 +34,12 @@ from ..interface import BookingError, BookingProvider
 from .venues import ALLERGEN_HANDLING, DAYS, VENUES, VENUES_BY_ID
 
 COELIAC_SAFE = {"coeliac_accredited", "dedicated_gluten_free"}
+# A diet is met by a venue offering it or a stricter one: a pescatarian can eat vegetarian, a
+# vegetarian can eat vegan. Matching the label literally hid most venues from a pescatarian.
+DIET_MET_BY = {
+    "pescatarian": ("pescatarian", "vegetarian", "vegan"),
+    "vegetarian": ("vegetarian", "vegan"),
+}
 PRICE_LEVELS = {"£": 1, "££": 2, "£££": 3, "££££": 4}
 MAX_DAYS_AHEAD = 90
 
@@ -114,6 +120,12 @@ class MockBookingProvider(BookingProvider):
         if not v:
             raise BookingError("unknown_venue", f"No venue with id {venue_id!r}")
         return v
+
+    def _meets_diet(self, v: dict, need: str) -> bool:
+        """Whether a venue caters for a dietary need, counting stricter diets it offers."""
+        need = need.lower().strip()
+        accepted = DIET_MET_BY.get(need, (need,))
+        return any(a in offered.lower() for a in accepted for offered in v["dietary"])
 
     def _allergens(self, v: dict) -> dict:
         """How the kitchen handles allergies: a level and what it means for the guest."""
@@ -253,7 +265,7 @@ class MockBookingProvider(BookingProvider):
             if dietary and any(w in dietary.lower() for w in ("coeliac", "celiac")):
                 if v["allergens"] not in COELIAC_SAFE:  # "gluten-free options" is not coeliac-safe
                     continue
-            elif dietary and not any(dietary.lower() in x.lower() for x in v["dietary"]):
+            elif dietary and not self._meets_diet(v, dietary):
                 continue
             if PRICE_LEVELS[v["price"]] > max_level:
                 continue

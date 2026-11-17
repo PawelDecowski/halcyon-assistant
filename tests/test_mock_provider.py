@@ -236,3 +236,13 @@ def test_search_never_hides_bookable_venues_behind_unbookable_ones(p):
     assert {"v-anatolia", "v-taqueria-azul"} <= {x["id"] for x in bookable}
     assert r["results"][:len(bookable)] == bookable  # bookable first
     assert len(r["results"]) - len(bookable) <= 2  # at most two that can't, with reasons
+
+
+def test_a_diet_is_met_by_stricter_ones(p):
+    """Practice: a pescatarian search in Shoreditch found nothing, though Verdure is vegetarian."""
+    r = run(p.search(date=day(3), party_size=3, time="19:00", area="Shoreditch", dietary="pescatarian"))
+    assert "v-verdure" in {x["id"] for x in r["results"]}
+    veg = {x["id"] for x in run(p.search(date=day(3), party_size=2, dietary="vegetarian", limit=30))["results"]}
+    assert "v-verdure" in veg and "v-kiku-counter" not in veg
+    halal = {x["id"] for x in run(p.search(date=day(3), party_size=2, dietary="halal", limit=30))["results"]}
+    assert halal and "v-verdure" not in halal  # other needs still match literally

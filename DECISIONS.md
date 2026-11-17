@@ -124,6 +124,10 @@ A custom scenario (David, a client dinner where his client Maria has a severe pe
 
 Amara, who wants no options, got a booking in the first reply with every assumption stated; in a second conversation "same again next Tues" fell on the evening she was already booked, and the same-day check made the assistant ask one question (move it, or a second dinner?) instead of double-booking. One fix: the confirmation rule ("say what you passed to the restaurant") made it say "I haven't passed anything" twice; it now mentions notes only when there are some. Wording issues are fixed only once they repeat, to keep the instructions short.
 
+## 15. Change-and-cancel scenario: dietary search was too literal
+
+Tom's booking, change (8.30pm unavailable, booking left unchanged until he picked 8.15pm) and cancellation all went right. But the assistant told him Shoreditch had nothing "that suited a pescatarian", when Verdure, a vegetarian small-plates place there, had tables. The mock matched dietary labels literally, and only two venues said "pescatarian". A diet is now met by a venue offering it or a stricter one (pescatarian by vegetarian or vegan, vegetarian by vegan); other needs such as halal still match exactly.
+
 ## Parked, to review
 
 - **Show the trade-off both ways.** When the member names a venue and their time isn't free there, also offer a comparable venue that has their time ("if 7.30 matters more than Maison Bastide, Ember & Oak has 7.30"), so they choose between venue and time, not only between times. From the deposit custom scenario: Charlotte wanted 7 to 8pm and got 8.15pm. One instruction line; risk is longer replies.
