@@ -120,6 +120,10 @@ Also tightened: never ask what the occasion makes obvious (it asked "romantic or
 
 A custom scenario (David, a client dinner where his client Maria has a severe peanut allergy) went well, but showed a flaw in decision 6: every allergy on file was added to every future booking, so Maria's allergy would have followed David to dinner with his wife. Now only the member's own allergies (category `allergies`) are added automatically. Someone else's is saved under `people` with their name and passed on, by the assistant, only when that person is coming.
 
+## 14. "Just book it" scenario
+
+Amara, who wants no options, got a booking in the first reply with every assumption stated; in a second conversation "same again next Tues" fell on the evening she was already booked, and the same-day check made the assistant ask one question (move it, or a second dinner?) instead of double-booking. One fix: the confirmation rule ("say what you passed to the restaurant") made it say "I haven't passed anything" twice; it now mentions notes only when there are some. Wording issues are fixed only once they repeat, to keep the instructions short.
+
 ## Parked, to review
 
 - **Show the trade-off both ways.** When the member names a venue and their time isn't free there, also offer a comparable venue that has their time ("if 7.30 matters more than Maison Bastide, Ember & Oak has 7.30"), so they choose between venue and time, not only between times. From the deposit custom scenario: Charlotte wanted 7 to 8pm and got 8.15pm. One instruction line; risk is longer replies.
