@@ -128,6 +128,6 @@ Amara, who wants no options, got a booking in the first reply with every assumpt
 
 Tom's booking, change (8.30pm unavailable, booking left unchanged until he picked 8.15pm) and cancellation all went right. But the assistant told him Shoreditch had nothing "that suited a pescatarian", when Verdure, a vegetarian small-plates place there, had tables. The mock matched dietary labels literally, and only two venues said "pescatarian". A diet is now met by a venue offering it or a stricter one (pescatarian by vegetarian or vegan, vegetarian by vegan); other needs such as halal still match exactly.
 
-## Parked, to review
+## 16. Alternatives keep what made it their choice
 
-- **Show the trade-off both ways.** When the member names a venue and their time isn't free there, also offer a comparable venue that has their time ("if 7.30 matters more than Maison Bastide, Ember & Oak has 7.30"), so they choose between venue and time, not only between times. From the deposit custom scenario: Charlotte wanted 7 to 8pm and got 8.15pm. One instruction line; risk is longer replies.
+Marcus asked for Kiku Counter (omakase, maximum 4) for 6. The assistant explained why not and handled the deposit perfectly, but its first alternatives were a clubby grill and a French restaurant: he had to say he wanted intimate and chef-led. Combined with the parked venue-vs-time idea from Charlotte's run into one instruction: alternatives keep the kind of food, format or atmosphere that made the request; if the time at a named venue is the problem, also offer a similar venue at their time.
