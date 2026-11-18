@@ -66,7 +66,11 @@ class Service:
         new: list[dict] = []
         while True:
             await asyncio.sleep(self.poll_s)
-            messages = (await self.http.get(f"/conversations/{conversation_id}/messages")).json()["messages"]
+            r = await self.http.get(f"/conversations/{conversation_id}/messages")
+            if r.status_code != 200:  # e.g. a 502 while the service restarts: keep polling, the 180 s still runs
+                print(f"  [GET answered {r.status_code}: {r.text[:100]}]")
+                continue
+            messages = r.json()["messages"]
             fresh = [m for m in messages[seen:] if m["role"] == "assistant"]
             now = time.monotonic()
             if len(fresh) > len(new):
