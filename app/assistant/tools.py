@@ -37,7 +37,8 @@ TOOLS: list[dict] = [
                         "put soft wishes (romantic, quiet, views, lively) in keywords. Each result lists up to 8 "
                         "available times nearest the requested time, and previously_booked if the member has "
                         "booked it before. Venues with tables come first; 'available' counts all of them, and "
-                        "more_available says when some aren't shown."),
+                        "more_available says when some aren't shown. Deposit and card-hold venues include "
+                        "terms_if_booked: the real terms for that date and time."),
         "input_schema": {
             "type": "object",
             "properties": {

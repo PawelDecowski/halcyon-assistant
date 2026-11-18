@@ -41,7 +41,8 @@ What you want from this conversation: {goal}
 Today is {today}. Reply with only your next message to the assistant. Answer its questions from \
 what you know about yourself; if something isn't covered, decide as a real person would. Do not \
 volunteer things the goal tells you to hold back. When your goal is achieved, or clearly can't be, \
-reply with {done} alone, or a short closing line followed by {done}."""
+reply with {done} alone, or a short closing line followed by {done}. A closing line is never sent, so \
+it must not ask for anything: if you still want something, ask for it without {done}."""
 
 
 class Service:
@@ -88,6 +89,10 @@ async def run_conversation(service: Service, member_llm, member: dict, persona: 
     instructions = [{"type": "text", "text": MEMBER_INSTRUCTIONS.format(
         persona=persona, goal=conv["goal"], done=DONE, today=datetime.now(LONDON).strftime("%A %d %B %Y"))}]
     conversation_id, transcript, waits, seen, sent = str(uuid.uuid4()), [], [], 0, 0
+    # Messages needed to reach the goal (the expected booking exists, or the cancellation went
+    # through), checked after every reply: follow-up chat afterwards is the member's choice.
+    goal = {k: v for k, v in (conv.get("expect") or {}).items() if k in ("booking", "confirmed_bookings")}
+    to_goal = None
     # From the member model's side, its own messages are "assistant" and the service's are "user".
     history: list[dict] = [{"role": "user", "content": "(You start the conversation.)"}]
     opening = conv.get("opening")
@@ -111,11 +116,14 @@ async def run_conversation(service: Service, member_llm, member: dict, persona: 
         replies, first_s = await service.wait_for_turn(conversation_id, seen)
         seen += len(replies)
         waits.append(round(first_s, 1))
+        if goal and to_goal is None and not check(goal, await service.bookings(member["id"]), []):
+            to_goal = sent
         transcript += [("assistant", r["text"]) for r in replies]
         history += [{"role": "assistant", "content": "\n".join(burst)},
                     {"role": "user", "content": "\n\n".join(r["text"] for r in replies)}]
         burst = None
-    return {"transcript": transcript, "member_messages": sent, "seconds_to_reply": waits}
+    return {"transcript": transcript, "member_messages": sent, "messages_to_goal": to_goal,
+            "seconds_to_reply": waits}
 
 
 def check(expect: dict, bookings: list[dict], notes: list[dict]) -> list[str]:
@@ -123,7 +131,7 @@ def check(expect: dict, bookings: list[dict], notes: list[dict]) -> list[str]:
 
     Expectation keys: confirmed_bookings (count of upcoming), booking (one or a list of: party_size,
     weekday, venue_id, venue_not, time_between, requests_mention), notes_mention, notes_not_mention,
-    max_member_messages (checked by the caller).
+    max_member_messages (checked by the caller, against the messages it took to reach the goal).
     """
     today = datetime.now(LONDON).date()
     upcoming = [b for b in bookings if b["status"] == "confirmed" and b["date"] >= today.isoformat()]
@@ -165,12 +173,16 @@ async def run_scenario(path: str, service: Service, member_llm, args) -> bool:
         for role, text in result["transcript"]:
             print(f"  {role.upper():9} " + text.replace("\n", "\n            "))
         # member messages = messages actually sent to the service; a closing line is not counted
-        print(f"  [{result['member_messages']} member messages; seconds to each reply: {result['seconds_to_reply']}]")
+        to_goal = result["messages_to_goal"]
+        print(f"  [{result['member_messages']} member messages"
+              + (f", goal reached after {to_goal}" if to_goal else "")
+              + f"; seconds to each reply: {result['seconds_to_reply']}]")
         if conv.get("expect"):
             failures = check(conv["expect"], await service.bookings(member["id"]), await service.notes(member["id"]))
             limit = conv["expect"].get("max_member_messages")
-            if limit and result["member_messages"] > limit:
-                failures.append(f"took {result['member_messages']} member messages, expected at most {limit}")
+            needed = result["messages_to_goal"] or result["member_messages"]
+            if limit and needed > limit:
+                failures.append(f"took {needed} member messages to reach the goal, expected at most {limit}")
             for f in failures:
                 print(f"  CHECK FAILED: {f}")
             print("  checks passed" if not failures else "")

@@ -247,8 +247,12 @@ class MockBookingProvider(BookingProvider):
                 free.append(_fmt(s))
         if around:
             free = sorted(free[:8])
-        return {"venue_id": v["id"], "venue_name": v["name"], "date": d.isoformat(), "party_size": party_size,
-                "open": True, "available_times": free}
+        result = {"venue_id": v["id"], "venue_name": v["name"], "date": d.isoformat(), "party_size": party_size,
+                  "open": True, "available_times": free}
+        if free and v["policy"]["mode"] != "instant":
+            at = min(free, key=lambda t: abs(_minutes(_parse_time(t)) - _minutes(_parse_time(around or free[0]))))
+            result["terms_if_booked"] = {"time": at, "terms": self._terms_if_booked(v, d, at, party_size)}
+        return result
 
     def _search(self, *, date: str, party_size: int, time: str | None = None, area: str | None = None,
                cuisine: str | None = None, keywords: str | None = None, dietary: str | None = None,
@@ -296,6 +300,9 @@ class MockBookingProvider(BookingProvider):
                 item["unavailable_reason"] = reason
             if v["policy"]["mode"] != "instant":
                 item["policy_note"] = self._policy_line(v)
+                if times:
+                    at = min(times, key=lambda t: abs(_minutes(_parse_time(t)) - _minutes(_parse_time(time or "19:30"))))
+                    item["terms_if_booked"] = {"time": at, "terms": self._terms_if_booked(v, d, at, party_size)}
             out.append(item)
         resp = {"date": d.isoformat(), "weekday": DAYS[d.weekday()], "party_size": party_size,
                 "matched": len(results), "available": len(bookable), "results": out}
@@ -441,6 +448,19 @@ class MockBookingProvider(BookingProvider):
                 "party_size": row["party_size"], "guest_name": row["guest_name"],
                 "special_requests": row["special_requests"], "deposit_gbp": row["deposit_gbp"],
                 **self._cancellation_terms(v, row)}
+
+    def _terms_if_booked(self, v: dict, d: Date, time: str, party_size: int) -> str | None:
+        """What a deposit or card hold would mean for this date and time if booked now, so the guest can
+        agree to the real terms before booking: a booking already inside the window can't be cancelled free."""
+        p = v["policy"]
+        if p["mode"] == "instant":
+            return None
+        row = {"date": d.isoformat(), "time": time, "party_size": party_size, "status": "confirmed",
+               "deposit_gbp": p["deposit_pp_gbp"] * party_size}
+        terms = self._cancellation_terms(v, row)["cancellation"]
+        if p["mode"] == "deposit":
+            return f"£{row['deposit_gbp']} deposit taken at booking. {terms}"
+        return f"Card held, nothing taken at booking. {terms}"
 
     def _cancellation_terms(self, v: dict, row: dict) -> dict:
         """The cancellation terms of a booking as of now, worked out here so nobody else has to.

@@ -142,3 +142,11 @@ Marcus asked for Kiku Counter (omakase, maximum 4) for 6. The assistant explaine
 - **Ambiguous deposit wording in our data** ("non-refundable within 48h"), which the assistant read as 48 hours after booking: now "refunded if cancelled more than 48 hours before, kept if cancelled later or for a no-show".
 
 The checks' own mistakes: a closing "thanks" that is never sent was counted as a member message; one question allowed by our own rule broke a limit of 2; and Charlotte's scenario expected Maison Bastide when it had nothing in her window. Fixed.
+
+## 18. Second harness run
+
+6 of 9 passed, and no member was told they "already had" a booking (fix 17 holds). The assistant's one real error: Marcus agreed to a £360 deposit described as "refunded if you cancel more than 48 hours ahead", for a dinner already inside that window, so it could never be refunded. It noticed after booking and said so, but consent was given on wrong terms. The general policy was all it could see before booking; search and availability now give `terms_if_booked` for the date and time ("already inside the 48-hour window: the deposit can't be refunded"), and the instructions say to quote those, never the general policy.
+
+The checks: the remaining failures were the simulated member chatting after its goal was met. The harness now checks the bookings after every reply and limits the messages it took to reach the goal (booked, changed or cancelled as expected), not the total. A member's closing line must not ask for anything, since it is never sent. Charlotte's scenario accepts any Saturday table she agrees to.
+
+Noted, not acted on: Charlotte's anniversary reached the restaurant but was not saved as a note. One miss in nine scenarios is not yet evidence for the background memory pass of decision 4.

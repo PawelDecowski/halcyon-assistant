@@ -252,3 +252,17 @@ def test_deposit_wording_says_when_it_is_refunded(p):
     note = run(p.search(date=day(2), party_size=2, cuisine="French"))["results"][0]["policy_note"]
     assert note == ("£60pp deposit taken at booking: refunded if cancelled more than 48 hours before, "
                     "kept if cancelled later or for a no-show.")
+
+
+def test_terms_before_booking_say_when_a_deposit_is_already_non_refundable(p):
+    """Practice: Marcus was told his deposit was refundable; the dinner was already inside the window."""
+    wednesday = day(2)
+    terms = run(p.availability("v-maison-bastide", wednesday, 6, time="20:00"))["terms_if_booked"]
+    assert terms["terms"].startswith("£360 deposit taken at booking. Free to cancel until ")
+    dinner = datetime.fromisoformat(f"{wednesday}T{terms['time']}").replace(tzinfo=LONDON)
+    p._now = lambda: dinner - timedelta(hours=40)  # 40 hours before: inside the 48-hour window
+    late = run(p.availability("v-maison-bastide", wednesday, 6, time="20:00"))["terms_if_booked"]
+    assert late["terms"].startswith("£360 deposit taken at booking. Already inside the 48-hour cancellation window")
+    found = run(p.search(date=wednesday, party_size=6, time="20:00", cuisine="French"))["results"][0]
+    assert found["terms_if_booked"]["terms"].startswith("£360 deposit taken at booking. Already inside")
+    assert "terms_if_booked" not in run(p.availability("v-casa-lucia", day(0), 2, time="19:30"))  # no deposit
