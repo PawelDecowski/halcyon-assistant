@@ -1,89 +1,50 @@
 # Halcyon assistant
 
-A restaurant-booking assistant for Halcyon members. It holds conversations over Halcyon's two-endpoint contract, books through a mocked booking provider, and remembers each member across conversations.
+A restaurant-booking assistant for Halcyon members: it holds conversations over the two-endpoint contract, books through a mocked booking provider, and remembers each member across conversations.
 
 - **Service:** https://halcyon-assistant-dev.up.railway.app
-- **Decision log:** [`DECISIONS.md`](DECISIONS.md) has every call made, why, and what changed after each practice run. This README is the short version.
+- **Every decision, and what each practice run changed:** [`DECISIONS.md`](DECISIONS.md)
 
-## How it works
-
-`POST` stores the message (once per `message_id`) and returns 202. A background worker answers it: Claude Sonnet runs a short tool loop (search, check, book, change, cancel, save a note) against a `BookingProvider` interface, then writes one reply. `GET` returns the conversation.
-
-```
-app/main.py            the contract, auth, review endpoints
-app/worker.py          one turn at a time per conversation, time limit, crash recovery
-app/assistant/         instructions, tools, member memory, Claude adapter
-app/booking/           BookingProvider interface; mock/ is the only implementation
-scenarios/, scripts/   practice members and the harness that plays them
-```
-
-One container on Railway, SQLite on a volume. The work happens after the response and state must last weeks, so scale-to-zero platforms were out. At larger scale: Postgres, a job queue, several instances.
+`POST` stores the message (once per `message_id`) and returns 202; a background worker answers it, with Claude Sonnet running a short tool loop (search, check, book, change, cancel, save a note) against a `BookingProvider` interface. One container on Railway with SQLite on a volume: the work happens after the response and state must last weeks, so scale-to-zero platforms were out. At larger scale: Postgres, a job queue, several instances.
 
 ## Decisions and assumptions
 
-**When to book, when to ask.** Ask only what changes the booking, in one message. Fill gaps from the member's history and say so ("8pm, your usual"). Book straight away when the request is specific or the member has said "just book it"; offer two or three options to a new member whose taste is unknown. Never spend money (deposits, card holds, late fees) without a clear yes.
-
-**Memory.** Rebuilt for every turn from three sources: notes of what the member said (corrections retire a note, never delete it), booking history (patterns such as their usual time are calculated, not stored, so they never go stale) and the end of their last three conversations. A member's file fits in the prompt, so no retrieval step can miss anything.
-
-**Honesty.** A booking exists only if the provider confirmed it. A note to a restaurant is one-way, so the assistant never claims a restaurant was asked or will confirm. Cancellation terms are worked out by the provider and repeated, not calculated by the model, including before booking, so a member agrees to the terms that will really apply. If a turn fails, the member is told exactly what was already done.
-
-**Rules in code, not just in the prompt.** The member's own allergies are always added to the restaurant's requests (a guest's only when that guest is coming); spending money needs an explicit "member accepted" flag; a second booking the same day needs confirmation; members can only touch their own bookings; venues booked before are marked so "somewhere new" can't be missed.
-
-**Reliability.** Repeated deliveries are answered once. A turn starts when the member goes quiet for 2 seconds, so a burst is one request. Every turn replies within 120 seconds, with a truthful fallback if the model is slow or down. A crash means the turn is redone on restart; booking keys derived from the turn stop a redo booking twice. No "on it" messages: the contract has no typing indicator, so one would be answered before the real reply.
-
-**The mock provider.** 48 invented restaurants, three or four in most areas, so nothing claims availability at a real one; deterministic availability, scarce at peak. It enforces rules that need judgement (deposits, card holds, closed days, party limits, allergen handling from "shared kitchen" to "fully gluten-free") and fails like real APIs (latency, a table taken between checking and booking, timeouts, half of them *after* the booking was written).
-
-**Assumptions.** Members are in London and mean London time. Every member has a card on file for deposits. Restaurants confirm instantly (no "pending" bookings). Halcyon's simulated members have no calendars, so there's no calendar integration.
-
-## Practice
-
-**Halcyon's public member** (Oliver: a client lunch, then two dinners with his coeliac husband), six runs:
-
-| Run | Succeeded | Member messages | Cost (USD) | What it led to |
-|---|---|---|---|---|
-| 1 | 1 of 3 | 11 | 0.63 | Allergen levels in the data; no "the restaurant will confirm"; cancellation terms worked out by the provider; shorter replies |
-| 2 | 2 of 3 | 7 | 0.18 | Coeliac-accredited kitchens; the latest requirement counts; upcoming vs past bookings labelled |
-| 3 | 2 of 3 | 6 | 0.10 | Venues booked before marked in search results |
-| 4, 5 | 2 of 3; run 5 had no issues at all | 6, 7 | | |
-| 6 | 3 of 3 | 8 | | Brief money terms in option lists; save the time a member wanted, not the one they settled for |
-
-Until run 6 the third conversation was "abandoned": Oliver wants somewhere new in Islington that is safe for a coeliac, and there is none. Rather than invent one for him, the venue data was made denser everywhere; with real alternatives close to home, he chose one. Caching and fewer turns account for the cost drop.
-
-**Halcyon's custom scenarios** (a birthday growing from 12 to 16, a deposit, a guest's allergy, "just book it", change then cancel, an impossible request) all succeeded. Reading them still found bugs no status showed: venues that couldn't seat 16 crowded out one that could, so the assistant said "the only place"; a literal dietary filter hid vegetarian venues from a pescatarian; a guest's allergy would have followed the member to every future booking.
-
-**My own harness.** `scripts/simulate.py` plays the nine members in `scenarios/` over the real contract and timing rules, then checks outcomes (the booking that really exists, notes saved or retired, messages needed to reach the goal), not wording. Runs went from 4 of 9 to 6 of 9 to 7 of 9 (both failures the scenarios' own mistakes, since fixed: 4 of 4 on re-running the affected ones). It found what nothing else did: the assistant telling members they "already had" a booking it had just made, a latent double booking, answers dropped when written alongside an action, and a deposit described as refundable for a dinner already inside its window. It also found its own mistakes, such as counting a member's closing "thanks", and showed twice that thin data decided an outcome (one seafood restaurant in all of London), which led to doubling the venues.
+- **Book or ask.** Ask only what changes the booking, all in one message. Fill gaps from the member's history and say so ("8pm, your usual"). Book straight away when the request is specific or the member says "just book it"; offer two or three options when their taste is unknown.
+- **Money needs a yes.** Deposits, card holds and late-cancellation fees are stated with the terms that will really apply for that date, and nothing is booked or cancelled until the member agrees.
+- **Memory.** Rebuilt every turn from notes of what the member said (corrections retire a note, never delete it), booking history (patterns are calculated, never stored, so they don't go stale) and the end of their last three conversations. A member's file fits in the prompt, so no retrieval step can miss anything.
+- **Honesty.** A booking exists only if the provider confirmed it. A note to a restaurant is one-way, so the assistant never claims a restaurant was asked or will confirm. If a turn fails, the member is told exactly what was already done.
+- **Rules in code, not only in the prompt.** The member's own allergies go on every booking (a guest's only when that guest comes); spending money needs an explicit "member accepted" flag; an identical booking is never made twice; members can only touch their own bookings.
+- **Reliability.** Repeated deliveries are answered once; a burst of messages is one request; every turn replies within 120 s, with a truthful fallback if the model is down; a crash redoes the turn without booking twice. No "on it" messages: the contract has no typing indicator, so one would be answered before the real reply.
+- **The mock.** 48 invented restaurants (nothing claims availability at a real one), deterministic availability, scarce at peak. It enforces rules that need judgement (deposits, closed days, party limits, allergen handling from "shared kitchen" to "fully gluten-free") and fails like real APIs: latency, a table taken between checking and booking, timeouts, half of them *after* the booking was written.
+- **Assumptions.** Members are in London. Every member has a card on file. Restaurants confirm instantly. Halcyon's members have no calendars, so there is no calendar integration.
 
 ## What I'd do next
 
-- **A status channel in the contract** (typing, searching, booking), so members see progress without it counting as a message.
-- **Pending confirmations and replies from restaurants**, with follow-up messages when they arrive.
-- **A background memory pass** after each conversation: the harness caught one missed note (an anniversary) in nine scenarios.
-- **Cheaper long conversations:** summarise old search results in the transcript; leaner search results.
-- **Calendar integration**, so the assistant checks the member is free, not just their usual time.
-- **Scenarios in CI** against a staging deploy, as a regression check on every prompt change.
+- A status channel in the contract (typing, searching), so members see progress without it counting as a message.
+- Pending confirmations and replies from restaurants, with follow-up messages when they arrive.
+- A background memory pass after each conversation: the practice scenarios caught one missed note in nine.
+- Cheaper long conversations: summarise old search results in the transcript.
+- Calendar integration, so the assistant checks the member is free, not just their usual time.
+- The practice scenarios in CI against a staging deploy, as a regression check on every prompt change.
 
 ## Time spent
 
-[Pawel: fill in.] Built with Claude as a coding agent: I made the product and engineering calls (logged in `DECISIONS.md`), it wrote most of the code to them, and we iterated on practice transcripts together.
+About 5 hours of hands-on time over four evenings, not counting time spent waiting for practice runs. Built with Claude as a coding agent: I made the product and engineering calls, it wrote most of the code to them, and we reviewed practice transcripts together.
 
-## Worth looking at
+## Worth looking at beyond the code
 
-- `app/assistant/prompt.py`: the assistant's behaviour in plain English.
-- `app/booking/mock/`: the mock provider and its venues.
-- `app/assistant/tools.py`: the rules enforced in code.
-- `tests/`: offline tests with a scripted model; no API key needed.
-- Review endpoints, not part of the contract, behind the same token: `GET /members/{id}/bookings` and `GET /members/{id}/notes`.
+- **`app/assistant/prompt.py`:** the assistant's behaviour in plain English.
+- **`app/booking/mock/`:** the mock provider and its venues.
+- **Practice.** Halcyon's public member went from 1 of 3 conversations succeeding to 3 of 3. To avoid tuning for one persona, `scenarios/` holds nine members of my own, each probing a behaviour, and `scripts/simulate.py` plays them over the real contract and timing rules, then checks what was really booked and noted. Reading transcripts mattered more than the scores: it found bugs no status showed, such as the assistant telling members they "already had" a booking it had just made, and a search that let venues unable to seat a group hide one that could.
+- **Review endpoints** (not part of the contract, same token): `GET /members/{id}/bookings` and `GET /members/{id}/notes`.
 
 ## Running it
 
-Python 3.11 or newer (`.python-version` says 3.12; `uv venv` picks it up).
+Python 3.11 or newer.
 
 ```
-uv venv && source .venv/bin/activate
-uv pip install -r requirements-dev.txt
-pytest                                          # offline, no API key needed
+uv venv && source .venv/bin/activate && uv pip install -r requirements-dev.txt
+pytest                                    # offline, scripted model, no API key needed
 API_TOKEN=dev ANTHROPIC_API_KEY=... uvicorn --factory app.main:create_app
 python -m scripts.simulate scenarios/*.yaml --url http://localhost:8000 --token dev
 ```
-
-Settings are env variables; see `app/main.py`.
