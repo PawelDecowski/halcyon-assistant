@@ -17,7 +17,7 @@ Part 1 is what the system does now and why, by topic. Part 2 is what practice ru
 - **One turn at a time per conversation.** A turn starts once the member has been quiet for 2 seconds, so a burst of messages is one request (practice: the first version counted from the first message and answered a slow burst twice). Messages arriving mid-turn are answered in the next turn.
 - **A reply within 120 seconds, always.** If the model is slow, down or fails, the member gets a truthful fallback built from what the turn actually changed ("I booked X, ref Y; nothing else"), never silence.
 - **One complete reply per turn, no "on it".** The contract has no typing indicator, so a holding message counts as a reply and would be answered before the real one; Halcyon's member waits up to 180 s, so silence while working costs nothing. Only the final message of a turn is sent (practice: sending all text from a turn recovered a dropped answer but leaked a working note to a member, so the instructions now say plainly that only the final message is seen).
-- **Claude Sonnet for every turn:** judgement is most of what is graded. The assistant keeps the full record of the current conversation, searches included, so "the second one" refers to something already found.
+- **Claude Sonnet for every turn:** judgement is most of what members notice. The assistant keeps the full record of the current conversation, searches included, so "the second one" refers to something already found.
 
 ### When to book and when to ask
 
@@ -64,7 +64,7 @@ Everything goes in the prompt: a member's file is small, so no search step can m
 - **48 invented London restaurants**, three or four in most areas, so nothing reads as a claim about a real restaurant and "nothing there" is as rare as on a real network (practice: with 25 venues, one seafood restaurant in all of London decided an outcome). The mix is realistic, not fitted to any scenario: Islington has one coeliac-safe kitchen, so Halcyon's member can't get a new one there.
 - **Deterministic availability**, scarce at peak, each venue with its own demand; our bookings use up tables.
 - **Rules that need judgement:** deposits and card holds, party limits with private dining for bigger groups, closed days, a booking window, and allergen handling in four levels from "shared kitchen" to "fully gluten-free" (practice: with only "gluten-free options", a coeliac could not be served honestly). A diet is met by a stricter one (a pescatarian can eat vegetarian). Search lists venues with tables first, so ones that can't take the booking never hide ones that can.
-- **Failures like a real API**, set by env and off in tests: latency, a table taken between checking and booking, and timeouts, half of them after the booking was written. Idempotency keys make a retry return the original booking.
+- **Failures like a real API**, set by env and off in tests: latency, a table taken between checking and booking, and timeouts, half of them after the booking was written. Idempotency keys make a retry return the original booking. Each failure defaults to 1% of calls: often enough to happen, rare enough that the mock isn't what decides a member's outcome.
 - **Bookings confirm instantly.** "Pending, the venue will confirm later" would need follow-ups after the conversation has moved on; listed under next steps.
 
 ### Cost

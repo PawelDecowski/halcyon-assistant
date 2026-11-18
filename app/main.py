@@ -77,8 +77,8 @@ def make_mock_provider(db: Database) -> MockBookingProvider:
     """Failure rates and latency come from env, so tests and practice runs can tune them."""
     return MockBookingProvider(
         db, tz=LONDON, seed=os.environ.get("MOCK_SEED", "halcyon"),
-        transient_error_rate=_env_float("MOCK_TRANSIENT_ERROR_RATE", 0.05),
-        slot_race_rate=_env_float("MOCK_SLOT_RACE_RATE", 0.05),
+        transient_error_rate=_env_float("MOCK_TRANSIENT_ERROR_RATE", 0.01),
+        slot_race_rate=_env_float("MOCK_SLOT_RACE_RATE", 0.01),
         latency_s=_env_float("MOCK_LATENCY_S", 0.3),
     )
 
