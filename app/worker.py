@@ -1,4 +1,4 @@
-"""Turns member messages into replies, in the background (DECISIONS.md, "Conversation and reliability").
+"""Turns member messages into replies, in the background (DECISIONS.md, "The contract and reliability").
 
 * One turn at a time per conversation. Messages arriving during a turn are
   answered together in the next one. A turn starts once the member has been
