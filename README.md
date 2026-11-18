@@ -37,7 +37,7 @@ One container on Railway, SQLite on a volume. The work happens after the respons
 
 ## Practice
 
-**Halcyon's public member** (Oliver: a client lunch, then two dinners with his coeliac husband), five runs:
+**Halcyon's public member** (Oliver: a client lunch, then two dinners with his coeliac husband), six runs:
 
 | Run | Succeeded | Member messages | Cost (USD) | What it led to |
 |---|---|---|---|---|
@@ -45,12 +45,13 @@ One container on Railway, SQLite on a volume. The work happens after the respons
 | 2 | 2 of 3 | 7 | 0.18 | Coeliac-accredited kitchens; the latest requirement counts; upcoming vs past bookings labelled |
 | 3 | 2 of 3 | 6 | 0.10 | Venues booked before marked in search results |
 | 4, 5 | 2 of 3; run 5 had no issues at all | 6, 7 | | |
+| 6 | 3 of 3 | 8 | | Brief money terms in option lists; save the time a member wanted, not the one they settled for |
 
-The third conversation stays "abandoned": Oliver wants somewhere new in Islington that is safe for a coeliac, and the data has none left. Adding one would tune the data to one persona. Caching and fewer turns account for the cost drop.
+Until run 6 the third conversation was "abandoned": Oliver wants somewhere new in Islington that is safe for a coeliac, and there is none. Rather than invent one for him, the venue data was made denser everywhere; with real alternatives close to home, he chose one. Caching and fewer turns account for the cost drop.
 
 **Halcyon's custom scenarios** (a birthday growing from 12 to 16, a deposit, a guest's allergy, "just book it", change then cancel, an impossible request) all succeeded. Reading them still found bugs no status showed: venues that couldn't seat 16 crowded out one that could, so the assistant said "the only place"; a literal dietary filter hid vegetarian venues from a pescatarian; a guest's allergy would have followed the member to every future booking.
 
-**My own harness.** `scripts/simulate.py` plays the nine members in `scenarios/` over the real contract and timing rules, then checks outcomes (the booking that really exists, notes saved or retired, messages needed to reach the goal), not wording. Runs went from 4 of 9 to 6 of 9 to 7 of 9, where both failures were the scenarios' own mistakes (a simulated member inventing a constraint). It found what nothing else did: the assistant telling members they "already had" a booking it had just made, a latent double booking, answers dropped when written alongside an action, and a deposit described as refundable for a dinner already inside its window. It also found its own mistakes, such as counting a member's closing "thanks", and showed twice that thin data decided an outcome (one seafood restaurant in all of London), which led to doubling the venues.
+**My own harness.** `scripts/simulate.py` plays the nine members in `scenarios/` over the real contract and timing rules, then checks outcomes (the booking that really exists, notes saved or retired, messages needed to reach the goal), not wording. Runs went from 4 of 9 to 6 of 9 to 7 of 9 (both failures the scenarios' own mistakes, since fixed: 4 of 4 on re-running the affected ones). It found what nothing else did: the assistant telling members they "already had" a booking it had just made, a latent double booking, answers dropped when written alongside an action, and a deposit described as refundable for a dinner already inside its window. It also found its own mistakes, such as counting a member's closing "thanks", and showed twice that thin data decided an outcome (one seafood restaurant in all of London), which led to doubling the venues.
 
 ## What I'd do next
 
