@@ -160,3 +160,7 @@ Two real problems from reading the transcripts:
 - **It booked when told to check something first.** A conditional booking ("check that before you confirm") now waits for the condition or the member's go-ahead.
 
 **Denser data.** For the second time thin data decided an outcome: there was one seafood restaurant in all of London, as there was one coeliac-safe kitchen in Islington. Added 23 venues (48 in all): three or four in most areas, more seafood, Japanese, French and Italian, and Hackney. Allergen levels follow a realistic mix (mostly shared kitchens, some separate preparation, few accredited). Deliberately not fitted to any scenario: Islington still has one coeliac-safe kitchen, so Oliver's third conversation stays impossible.
+
+## 20. Halcyon's member, 3 of 3
+
+On the denser data Oliver's third conversation succeeded for the first time, with nothing fitted to him: Islington still has one coeliac-safe kitchen, but there were real alternatives close to home, and the assistant checked neighbouring areas before saying no. Two issues, both fixed in the instructions: full card-hold terms were given for an option he hadn't chosen (money is now mentioned briefly in a list, in full only when asking for a yes), and it anchored on the time he had settled for, not the time he wanted (a time accepted as a compromise now saves the wanted time as a note, which outranks booking history).
