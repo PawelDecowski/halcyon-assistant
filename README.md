@@ -70,8 +70,11 @@ Conversation caching and fewer turns account for the cost drop. To avoid tuning 
 
 ## Running it
 
+Python 3.11 or newer (`.python-version` says 3.12; `uv venv` picks it up).
+
 ```
-pip install -r requirements-dev.txt
+uv venv && source .venv/bin/activate
+uv pip install -r requirements-dev.txt
 pytest                                          # offline, no API key needed
 API_TOKEN=dev ANTHROPIC_API_KEY=... uvicorn --factory app.main:create_app
 python -m scripts.simulate scenarios/*.yaml --url http://localhost:8000 --token dev

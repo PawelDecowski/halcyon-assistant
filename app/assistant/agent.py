@@ -11,7 +11,7 @@ from ..db import Database
 from .llm import LLM
 from .memory import member_context
 from .prompt import INSTRUCTIONS, calendar
-from .tools import LONDON, TOOLS, ToolRunner, TurnContext
+from .tools import LONDON, TOOLS, ToolRunner, TurnContext, references_made
 
 log = logging.getLogger("halcyon.assistant")
 
@@ -31,7 +31,7 @@ class Assistant:
 
     async def instructions(self, ctx: TurnContext) -> list[dict]:
         """Fixed instructions (cached by the API) plus what changes each turn: date and member context."""
-        about = await member_context(self.db, self.provider, ctx.member_id, ctx.conversation_id)
+        about = await member_context(self.db, self.provider, ctx.member_id, ctx.conversation_id, ctx.booked_here)
         return [{"type": "text", "text": INSTRUCTIONS, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": calendar(datetime.now(LONDON)) + "\n\n" + about}]
 
@@ -41,19 +41,25 @@ class Assistant:
 
         The transcript is a copy; the caller stores it together with the reply.
         """
+        ctx.booked_here |= references_made(transcript)
         transcript = transcript + [{"role": "user", "content": [{"type": "text", "text": "\n".join(member_texts)}]}]
         system = await self.instructions(ctx)
+        written: list[str] = []  # text written alongside actions is part of the reply too
         for _ in range(MAX_TOOL_ROUNDS):
             blocks = await self.llm.complete(system, transcript, TOOLS, label=ctx.conversation_id)
             calls = [b for b in blocks if b["type"] == "tool_use"]
-            reply = _text(blocks)
-            if not calls and not reply:  # the API rejects empty assistant messages; nudge instead
+            text = _text(blocks)
+            if not calls and not text:  # the API rejects empty assistant messages; nudge instead
+                if written:
+                    return "\n\n".join(written), transcript
                 transcript += [{"role": "assistant", "content": [{"type": "text", "text": "…"}]},
                                {"role": "user", "content": [{"type": "text", "text": NUDGE_EMPTY}]}]
                 continue
             transcript.append({"role": "assistant", "content": blocks})
+            if text:
+                written.append(text)
             if not calls:
-                return reply, transcript
+                return "\n\n".join(written), transcript
             results = await asyncio.gather(*(self.tools.run(ctx, c["name"], c.get("input") or {}) for c in calls))
             log.info("conversation %s tools: %s", ctx.conversation_id,
                      [(c["name"], json.dumps(c.get("input"))[:200]) for c in calls])
@@ -62,11 +68,12 @@ class Assistant:
         # Too many rounds: one last call without tools, so it has to answer.
         transcript.append({"role": "user", "content": [{"type": "text", "text": NUDGE_FINISH}]})
         blocks = await self.llm.complete(system, transcript, TOOLS, label=ctx.conversation_id, text_only=True)
-        reply = _text(blocks)
-        if not reply:
+        if _text(blocks):
+            written.append(_text(blocks))
+            transcript.append({"role": "assistant", "content": blocks})
+        if not written:
             raise RuntimeError("the model wrote no reply")
-        transcript.append({"role": "assistant", "content": blocks})
-        return reply, transcript
+        return "\n\n".join(written), transcript
 
 
 def fallback_reply(ctx: TurnContext) -> str:

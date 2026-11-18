@@ -83,7 +83,7 @@ def test_redone_turn_after_crash_does_not_double_book(tmp_path):
     db.execute("DELETE FROM transcripts")
     c, _ = app_with(tmp_path, FakeLLM(tool_then_report("book_table", BOOK_CASA)))
     with c:  # the restart redoes the turn
-        assert json.loads(replies(c, cid)[0])["replayed"] is True
+        assert "already_booked" in json.loads(replies(c, cid)[0])
         assert len(c.get(f"/members/{member}/bookings", headers=H).json()["bookings"]) == 1
 
 
@@ -257,3 +257,92 @@ def test_search_marks_venues_booked_before(tmp_path):
         results = {r["id"]: r for r in json.loads(replies(c, cid)[0])["results"]}
     assert results["v-casa-lucia"]["previously_booked"].startswith("upcoming booking on Mon ")
     assert "previously_booked" not in results["v-taqueria-azul"]
+
+
+# -- harness run 1: bookings made here, identical bookings, all reply text -------------------
+
+def booking_turns(script_per_turn):
+    """A model whose behaviour depends on which member turn it is answering (1-based)."""
+    def script(system, messages, tools):
+        turn = sum(1 for m in messages if m["role"] == "user" and m["content"][0]["type"] == "text")
+        return script_per_turn(turn, system, messages)
+    return script
+
+
+def test_booking_made_here_is_marked_in_the_next_turn(tmp_path):
+    def script(turn, system, messages):
+        if turn == 1 and last_tool_result(messages) is None:
+            return [{"type": "tool_use", "id": "b", "name": "book_table", "input": BOOK_CASA}]
+        return [{"type": "text", "text": "ok"}]
+
+    llm = FakeLLM(booking_turns(script))
+    c, _ = app_with(tmp_path, llm)
+    with c:
+        cid, member = str(uuid.uuid4()), str(uuid.uuid4())
+        post(c, cid, member, "book casa lucia")
+        replies(c, cid)
+        post(c, cid, member, "thanks")
+        replies(c, cid, n=2)
+    shown = " ".join(b["text"] for b in llm.calls[-1]["system"])
+    assert "[booked by you in this conversation]" in shown
+
+
+def test_same_booking_asked_for_again_later_is_not_made_twice(tmp_path):
+    def script(turn, system, messages):
+        result = last_tool_result(messages)
+        if result is None:  # every turn tries to book the same table
+            return [{"type": "tool_use", "id": f"b{turn}", "name": "book_table", "input": BOOK_CASA}]
+        return [{"type": "text", "text": json.dumps(result)}]
+
+    c, _ = app_with(tmp_path, FakeLLM(booking_turns(script)))
+    with c:
+        cid, member = str(uuid.uuid4()), str(uuid.uuid4())
+        post(c, cid, member, "book casa lucia")
+        first = json.loads(replies(c, cid)[0])
+        post(c, cid, member, "keep it")
+        second = json.loads(replies(c, cid, n=2)[1])
+        assert second["reference"] == first["reference"]
+        assert second["already_booked"].endswith("You made it earlier in this conversation.")
+        assert len(c.get(f"/members/{member}/bookings", headers=H).json()["bookings"]) == 1
+
+
+def test_retry_after_timeout_is_presented_as_this_turns_booking(tmp_path):
+    calls = {"n": 0}
+
+    def script(system, messages, tools):
+        result = last_tool_result(messages)
+        if result is None or (result.get("error") == "upstream_timeout" and calls["n"] < 2):
+            calls["n"] += 1
+            return [{"type": "tool_use", "id": f"b{calls['n']}", "name": "book_table", "input": BOOK_CASA}]
+        return [{"type": "text", "text": json.dumps(result)}]
+
+    c, db_path = app_with(tmp_path, FakeLLM(script))
+    provider = c.app.state.worker.assistant.provider
+
+    def timeout_once():
+        provider._maybe_fail_after = lambda: None
+        from app.booking.interface import BookingError
+        raise BookingError("upstream_timeout", "timed out", retryable=True)
+
+    provider._maybe_fail_after = timeout_once  # the first call writes the booking, then "times out"
+    with c:
+        cid = str(uuid.uuid4())
+        post(c, cid, str(uuid.uuid4()), "book it")
+        result = json.loads(replies(c, cid)[0])
+    assert "replayed" not in result and result["note"].startswith("This is the booking your earlier call")
+    assert result["booked_in_this_conversation"] is True
+
+
+def test_text_written_alongside_an_action_reaches_the_member(tmp_path):
+    def script(system, messages, tools):
+        if last_tool_result(messages) is None:
+            return [{"type": "text", "text": "I can't set calendar reminders, sorry."},
+                    {"type": "tool_use", "id": "n", "name": "save_member_note",
+                     "input": {"category": "people", "note": "Client Maria: severe peanut allergy"}}]
+        return [{"type": "text", "text": "Maria's allergy is saved."}]
+
+    c, _ = app_with(tmp_path, FakeLLM(script))
+    with c:
+        cid = str(uuid.uuid4())
+        post(c, cid, str(uuid.uuid4()), "remind me at 5pm, and note Maria's allergy")
+        assert replies(c, cid)[0] == "I can't set calendar reminders, sorry.\n\nMaria's allergy is saved."

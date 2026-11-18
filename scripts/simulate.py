@@ -87,7 +87,7 @@ async def run_conversation(service: Service, member_llm, member: dict, persona: 
                            max_turns: int, deliveries: int) -> dict:
     instructions = [{"type": "text", "text": MEMBER_INSTRUCTIONS.format(
         persona=persona, goal=conv["goal"], done=DONE, today=datetime.now(LONDON).strftime("%A %d %B %Y"))}]
-    conversation_id, transcript, waits, seen = str(uuid.uuid4()), [], [], 0
+    conversation_id, transcript, waits, seen, sent = str(uuid.uuid4()), [], [], 0, 0
     # From the member model's side, its own messages are "assistant" and the service's are "user".
     history: list[dict] = [{"role": "user", "content": "(You start the conversation.)"}]
     opening = conv.get("opening")
@@ -98,8 +98,8 @@ async def run_conversation(service: Service, member_llm, member: dict, persona: 
             burst = ["".join(b.get("text", "") for b in blocks).strip()]
         if any(DONE in text for text in burst):
             closing = burst[0].replace(DONE, "").strip()
-            if closing:
-                transcript.append(("member", closing))
+            if closing:  # shown, but never sent: the member has left
+                transcript.append(("member (closing, not sent)", closing))
             break
         for i, text in enumerate(burst):  # a burst: several messages in quick succession
             if i:
@@ -107,6 +107,7 @@ async def run_conversation(service: Service, member_llm, member: dict, persona: 
             transcript.append(("member", text))
             await service.send(conversation_id, member, text, deliveries)
             seen += 1
+            sent += 1
         replies, first_s = await service.wait_for_turn(conversation_id, seen)
         seen += len(replies)
         waits.append(round(first_s, 1))
@@ -114,8 +115,7 @@ async def run_conversation(service: Service, member_llm, member: dict, persona: 
         history += [{"role": "assistant", "content": "\n".join(burst)},
                     {"role": "user", "content": "\n\n".join(r["text"] for r in replies)}]
         burst = None
-    return {"transcript": transcript, "member_messages": sum(r == "member" for r, _ in transcript),
-            "seconds_to_reply": waits}
+    return {"transcript": transcript, "member_messages": sent, "seconds_to_reply": waits}
 
 
 def check(expect: dict, bookings: list[dict], notes: list[dict]) -> list[str]:
@@ -164,6 +164,7 @@ async def run_scenario(path: str, service: Service, member_llm, args) -> bool:
         print(f"\n--- conversation {i}: {conv['goal'].strip()}")
         for role, text in result["transcript"]:
             print(f"  {role.upper():9} " + text.replace("\n", "\n            "))
+        # member messages = messages actually sent to the service; a closing line is not counted
         print(f"  [{result['member_messages']} member messages; seconds to each reply: {result['seconds_to_reply']}]")
         if conv.get("expect"):
             failures = check(conv["expect"], await service.bookings(member["id"]), await service.notes(member["id"]))
@@ -186,6 +187,7 @@ async def main() -> int:
     ap.add_argument("--max-turns", type=int, default=8)
     ap.add_argument("--duplicate", action="store_true", help="deliver every member message twice")
     args = ap.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)  # print as it goes, even through `| tee`
     service = Service(args.url, args.token, args.quiet)
     member_llm = ClaudeLLM(model=os.environ.get("MEMBER_MODEL", "claude-haiku-5-5"))  # cheap is fine for the member
     results = [await run_scenario(p, service, member_llm, args) for p in args.scenarios]

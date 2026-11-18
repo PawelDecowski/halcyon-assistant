@@ -21,4 +21,4 @@ conversations:
     opening: "can you sort lunch for sat? 1ish"
     expect:
       booking: {party_size: 2, weekday: sat, venue_not: [v-han-seoul, v-taqueria-azul, v-osteria-fumo, v-bodega-sur, v-kiku-counter]}
-      max_member_messages: 2
+      max_member_messages: 3  # one question is allowed: a single earlier booking is a hint, not a habit

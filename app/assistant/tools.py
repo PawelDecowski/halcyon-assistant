@@ -146,6 +146,30 @@ class TurnContext:
     member_name: str
     turn_key: str  # the same if the turn is redone, so idempotency keys repeat
     effects: list[str] = field(default_factory=list)
+    # References of bookings the assistant made or changed in this conversation, so they are
+    # never presented as ones the member "already had".
+    booked_here: set[str] = field(default_factory=set)
+    # Idempotency keys already sent this turn: a repeat is a retry (say, after a timeout), not a new request.
+    attempted_keys: set[str] = field(default_factory=set)
+
+
+def references_made(transcript: list[dict]) -> set[str]:
+    """References of bookings confirmed by book_table or change_booking in a conversation's transcript."""
+    calls = {b["id"]: b["name"] for m in transcript if m["role"] == "assistant" and isinstance(m["content"], list)
+             for b in m["content"] if b.get("type") == "tool_use"}
+    refs = set()
+    for m in transcript:
+        if m["role"] != "user" or not isinstance(m["content"], list):
+            continue
+        for b in m["content"]:
+            if b.get("type") == "tool_result" and calls.get(b["tool_use_id"]) in ("book_table", "change_booking"):
+                try:
+                    result = json.loads(b["content"])
+                except (TypeError, ValueError):
+                    continue
+                if result.get("status") == "confirmed" and result.get("reference"):
+                    refs.add(result["reference"])
+    return refs
 
 
 class ToolRunner:
@@ -193,25 +217,45 @@ class ToolRunner:
                           policy_accepted_by_member=False, second_booking_same_day=False):
         key = hashlib.sha256(f"{ctx.conversation_id}|{ctx.turn_key}|{venue_id}|{date}|{time}|{party_size}"
                              .encode()).hexdigest()
-        if not second_booking_same_day:
-            same_day = [b for b in await self.provider.bookings_for_member(ctx.member_id)
-                        if b["status"] == "confirmed" and b["date"] == date]
-            # A retry of a booking this turn already made is not a second booking.
-            same_day = [b for b in same_day if not (b["venue_id"] == venue_id and b["time"] == time)]
-            if same_day:
-                return {"error": "already_booked_that_day",
-                        "message": "The member already has a booking that day. Check with them, or set "
-                                   "second_booking_same_day if intended (e.g. replacing it: book, then cancel the old one).",
-                        "existing": same_day}
+        same_day = [self._mark(ctx, b) for b in await self.provider.bookings_for_member(ctx.member_id)
+                    if b["status"] == "confirmed" and b["date"] == date]
+        identical = [b for b in same_day
+                     if (b["venue_id"], b["time"], b["party_size"]) == (venue_id, time.zfill(5), party_size)]
+        if identical and key not in ctx.attempted_keys:  # never make the same booking twice, whichever turn asks
+            booking = identical[0]
+            booking["already_booked"] = (
+                "Nothing new was booked: this booking already exists. "
+                + ("You made it earlier in this conversation." if booking.get("booked_in_this_conversation")
+                   else "Check the member's bookings before saying when it was made."))
+            return booking
+        if same_day and not second_booking_same_day and key not in ctx.attempted_keys:
+            return {"error": "already_booked_that_day",
+                    "message": "The member already has a booking that day. Check with them, or set "
+                               "second_booking_same_day if intended (e.g. replacing it: book, then cancel the old one).",
+                    "existing": same_day}
+        ctx.attempted_keys.add(key)
         result = await self.provider.book(
             venue_id=venue_id, date=date, time=time, party_size=party_size, member_id=ctx.member_id,
             guest_name=guest_name or ctx.member_name, idempotency_key=key,
             special_requests=self._with_allergies(ctx.member_id, special_requests),
             policy_acknowledged=bool(policy_accepted_by_member))
-        if not result.get("replayed"):
+        if result.pop("replayed", False):
+            # The key is unique to this conversation and turn, so a replay is always this turn's own booking
+            # (e.g. a retry after a timeout). Say so plainly: it is not one the member "already had".
+            result["note"] = "This is the booking your earlier call in this turn made; a retry returns it. There is one booking."
+        if result["reference"] not in ctx.booked_here:
             ctx.effects.append(f"Booked {result['venue_name']} for {result['weekday'].title()} {result['date']} at "
                                f"{result['time']}, party of {result['party_size']} (ref {result['reference']}).")
+        ctx.booked_here.add(result["reference"])
+        result["booked_in_this_conversation"] = True
         return result
+
+    @staticmethod
+    def _mark(ctx: TurnContext, booking: dict) -> dict:
+        """Flag a booking the assistant made in this conversation, so it isn't taken for an older one."""
+        if booking["reference"] in ctx.booked_here:
+            return {**booking, "booked_in_this_conversation": True}
+        return booking
 
     def _with_allergies(self, member_id: str, requests: str | None) -> str | None:
         """Add the member's own allergy notes to the restaurant's special requests, whatever the model wrote.
@@ -224,7 +268,7 @@ class ToolRunner:
 
     async def _list_member_bookings(self, ctx, include_past=False):
         today = datetime.now(LONDON).date().isoformat()
-        bookings = await self.provider.bookings_for_member(ctx.member_id)
+        bookings = [self._mark(ctx, b) for b in await self.provider.bookings_for_member(ctx.member_id)]
         return {"bookings": bookings if include_past else [b for b in bookings if b["date"] >= today]}
 
     async def _owned(self, ctx, reference: str) -> None:
@@ -236,6 +280,7 @@ class ToolRunner:
         await self._owned(ctx, reference)
         result = await self.provider.modify(reference, date=date, time=time, party_size=party_size,
                                             special_requests=special_requests)
+        ctx.booked_here.add(reference)
         ctx.effects.append(f"Changed booking {reference}: now {result['venue_name']}, {result['weekday'].title()} "
                            f"{result['date']} at {result['time']}, party of {result['party_size']}.")
         return result

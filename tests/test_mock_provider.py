@@ -246,3 +246,9 @@ def test_a_diet_is_met_by_stricter_ones(p):
     assert "v-verdure" in veg and "v-kiku-counter" not in veg
     halal = {x["id"] for x in run(p.search(date=day(3), party_size=2, dietary="halal", limit=30))["results"]}
     assert halal and "v-verdure" not in halal  # other needs still match literally
+
+
+def test_deposit_wording_says_when_it_is_refunded(p):
+    note = run(p.search(date=day(2), party_size=2, cuisine="French"))["results"][0]["policy_note"]
+    assert note == ("£60pp deposit taken at booking: refunded if cancelled more than 48 hours before, "
+                    "kept if cancelled later or for a no-show.")

@@ -311,10 +311,10 @@ class MockBookingProvider(BookingProvider):
         """One-sentence summary of a deposit or card-hold policy, for the guest."""
         p = v["policy"]
         if p["mode"] == "deposit":
-            return (f"£{p['deposit_pp_gbp']}pp deposit taken at booking; non-refundable within "
-                    f"{p['cancellation_hours']}h.")
-        return (f"Card held; £{p['cancellation_fee_pp_gbp']}pp charged for no-show or cancelling within "
-                f"{p['cancellation_hours']}h.")
+            return (f"£{p['deposit_pp_gbp']}pp deposit taken at booking: refunded if cancelled more than "
+                    f"{p['cancellation_hours']} hours before, kept if cancelled later or for a no-show.")
+        return (f"Card held, nothing taken now: £{p['cancellation_fee_pp_gbp']}pp charged for a no-show or for "
+                f"cancelling within {p['cancellation_hours']} hours.")
 
     # -- bookings -----------------------------------------------------------------
     def _maybe_fail_before(self) -> None:

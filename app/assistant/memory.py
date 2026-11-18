@@ -69,8 +69,10 @@ def booking_patterns(bookings: list[dict]) -> list[str]:
     return lines
 
 
-async def member_context(db: Database, provider: BookingProvider, member_id: str, conversation_id: str) -> str:
-    """Everything known about the member, as text for the model's instructions."""
+async def member_context(db: Database, provider: BookingProvider, member_id: str, conversation_id: str,
+                         booked_here: set[str] = frozenset()) -> str:
+    """Everything known about the member, as text for the model's instructions.
+    `booked_here`: references made or changed in this conversation, marked so they aren't mistaken for older ones."""
     member = db.one("SELECT name FROM members WHERE id = ?", (member_id,)) or {"name": "the member"}
     lines = [f"Member: {member['name']}."]
 
@@ -87,8 +89,10 @@ async def member_context(db: Database, provider: BookingProvider, member_id: str
 
     def line(b: dict) -> str:
         extra = f", requests: {b['special_requests']}" if b.get("special_requests") else ""
+        here = " [booked by you in this conversation]" if b["reference"] in booked_here else ""
         return (f"- {b['reference']}: {b['venue_name']} ({b['area']}), {b['weekday'].title()} {b['date']} "
-                f"({_when(date.fromisoformat(b['date']), today_date)}) {b['time']}, party of {b['party_size']}{extra}")
+                f"({_when(date.fromisoformat(b['date']), today_date)}) {b['time']}, party of {b['party_size']}"
+                f"{extra}{here}")
 
     upcoming = [b for b in bookings if b["status"] == "confirmed" and b["date"] >= today]
     past = [b for b in bookings if b["status"] == "confirmed" and b["date"] < today][-5:]

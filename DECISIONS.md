@@ -131,3 +131,14 @@ Tom's booking, change (8.30pm unavailable, booking left unchanged until he picke
 ## 16. Alternatives keep what made it their choice
 
 Marcus asked for Kiku Counter (omakase, maximum 4) for 6. The assistant explained why not and handled the deposit perfectly, but its first alternatives were a clubby grill and a French restaurant: he had to say he wanted intimate and chef-led. Combined with the parked venue-vs-time idea from Charlotte's run into one instruction: alternatives keep the kind of food, format or atmosphere that made the request; if the time at a named venue is the problem, also offer a similar venue at their time.
+
+## 17. Our first harness run
+
+4 of 9 scenarios passed. Of the failures, the assistant's:
+
+- **It told four members they "already had" a booking it had just made.** In the turn after booking, the member file listed the new booking as "upcoming" with nothing saying it was made in this conversation, and a retried booking came back marked `replayed`; the model read both as "pre-existing" and apologised for a mistake that never happened, alarming the member. Bookings made or changed in a conversation are now tracked (from the transcript) and marked "booked by you in this conversation"; a retry within a turn is presented as "the booking your earlier call made".
+- **A latent double booking**, found while tracing that: the same-day check skipped bookings at the same venue and time, assuming a retry, but a later turn would use a new key and book again. An identical booking is now returned, never made twice, whichever turn asks.
+- **Questions ignored**: text the model wrote alongside an action was dropped, so David's answer about his reminder and the menu never arrived. All text written during a turn is now sent; the instructions say never to write the same thing twice and to answer every question.
+- **Ambiguous deposit wording in our data** ("non-refundable within 48h"), which the assistant read as 48 hours after booking: now "refunded if cancelled more than 48 hours before, kept if cancelled later or for a no-show".
+
+The checks' own mistakes: a closing "thanks" that is never sent was counted as a member message; one question allowed by our own rule broke a limit of 2; and Charlotte's scenario expected Maison Bastide when it had nothing in her window. Fixed.
