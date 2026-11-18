@@ -44,22 +44,19 @@ class Assistant:
         ctx.booked_here |= references_made(transcript)
         transcript = transcript + [{"role": "user", "content": [{"type": "text", "text": "\n".join(member_texts)}]}]
         system = await self.instructions(ctx)
-        written: list[str] = []  # text written alongside actions is part of the reply too
+        # Only the final message is sent. Text written alongside actions is the model's working
+        # (e.g. "that area isn't known, retrying"); sending it leaked notes to a member.
         for _ in range(MAX_TOOL_ROUNDS):
             blocks = await self.llm.complete(system, transcript, TOOLS, label=ctx.conversation_id)
             calls = [b for b in blocks if b["type"] == "tool_use"]
             text = _text(blocks)
             if not calls and not text:  # the API rejects empty assistant messages; nudge instead
-                if written:
-                    return "\n\n".join(written), transcript
                 transcript += [{"role": "assistant", "content": [{"type": "text", "text": "…"}]},
                                {"role": "user", "content": [{"type": "text", "text": NUDGE_EMPTY}]}]
                 continue
             transcript.append({"role": "assistant", "content": blocks})
-            if text:
-                written.append(text)
             if not calls:
-                return "\n\n".join(written), transcript
+                return text, transcript
             results = await asyncio.gather(*(self.tools.run(ctx, c["name"], c.get("input") or {}) for c in calls))
             log.info("conversation %s tools: %s", ctx.conversation_id,
                      [(c["name"], json.dumps(c.get("input"))[:200]) for c in calls])
@@ -68,12 +65,11 @@ class Assistant:
         # Too many rounds: one last call without tools, so it has to answer.
         transcript.append({"role": "user", "content": [{"type": "text", "text": NUDGE_FINISH}]})
         blocks = await self.llm.complete(system, transcript, TOOLS, label=ctx.conversation_id, text_only=True)
-        if _text(blocks):
-            written.append(_text(blocks))
-            transcript.append({"role": "assistant", "content": blocks})
-        if not written:
+        reply = _text(blocks)
+        if not reply:
             raise RuntimeError("the model wrote no reply")
-        return "\n\n".join(written), transcript
+        transcript.append({"role": "assistant", "content": blocks})
+        return reply, transcript
 
 
 def fallback_reply(ctx: TurnContext) -> str:

@@ -333,16 +333,17 @@ def test_retry_after_timeout_is_presented_as_this_turns_booking(tmp_path):
     assert result["booked_in_this_conversation"] is True
 
 
-def test_text_written_alongside_an_action_reaches_the_member(tmp_path):
+def test_only_the_final_message_is_sent(tmp_path):
+    """Practice: working text written alongside an action ("that area isn't known") reached a member."""
     def script(system, messages, tools):
         if last_tool_result(messages) is None:
-            return [{"type": "text", "text": "I can't set calendar reminders, sorry."},
-                    {"type": "tool_use", "id": "n", "name": "save_member_note",
-                     "input": {"category": "people", "note": "Client Maria: severe peanut allergy"}}]
-        return [{"type": "text", "text": "Maria's allergy is saved."}]
+            return [{"type": "text", "text": "West London isn't a known area; retrying."},
+                    {"type": "tool_use", "id": "s", "name": "search_restaurants",
+                     "input": {"date": day(1), "party_size": 2, "area": "Chelsea"}}]
+        return [{"type": "text", "text": "Booked somewhere lovely in Chelsea."}]
 
     c, _ = app_with(tmp_path, FakeLLM(script))
     with c:
         cid = str(uuid.uuid4())
-        post(c, cid, str(uuid.uuid4()), "remind me at 5pm, and note Maria's allergy")
-        assert replies(c, cid)[0] == "I can't set calendar reminders, sorry.\n\nMaria's allergy is saved."
+        post(c, cid, str(uuid.uuid4()), "dinner in west london")
+        assert replies(c, cid)[0] == "Booked somewhere lovely in Chelsea."

@@ -31,7 +31,7 @@ One container on Railway, SQLite on a volume. The work happens after the respons
 
 **Reliability.** Repeated deliveries are answered once. A turn starts when the member goes quiet for 2 seconds, so a burst is one request. Every turn replies within 120 seconds, with a truthful fallback if the model is slow or down. A crash means the turn is redone on restart; booking keys derived from the turn stop a redo booking twice. No "on it" messages: the contract has no typing indicator, so one would be answered before the real reply.
 
-**The mock provider.** 25 invented restaurants, so nothing claims availability at a real one; deterministic availability, scarce at peak. It enforces rules that need judgement (deposits, card holds, closed days, party limits, allergen handling from "shared kitchen" to "fully gluten-free") and fails like real APIs (latency, a table taken between checking and booking, timeouts, half of them *after* the booking was written).
+**The mock provider.** 48 invented restaurants, three or four in most areas, so nothing claims availability at a real one; deterministic availability, scarce at peak. It enforces rules that need judgement (deposits, card holds, closed days, party limits, allergen handling from "shared kitchen" to "fully gluten-free") and fails like real APIs (latency, a table taken between checking and booking, timeouts, half of them *after* the booking was written).
 
 **Assumptions.** Members are in London and mean London time. Every member has a card on file for deposits. Restaurants confirm instantly (no "pending" bookings). Halcyon's simulated members have no calendars, so there's no calendar integration.
 
@@ -50,14 +50,13 @@ The third conversation stays "abandoned": Oliver wants somewhere new in Islingto
 
 **Halcyon's custom scenarios** (a birthday growing from 12 to 16, a deposit, a guest's allergy, "just book it", change then cancel, an impossible request) all succeeded. Reading them still found bugs no status showed: venues that couldn't seat 16 crowded out one that could, so the assistant said "the only place"; a literal dietary filter hid vegetarian venues from a pescatarian; a guest's allergy would have followed the member to every future booking.
 
-**My own harness.** `scripts/simulate.py` plays the nine members in `scenarios/` over the real contract and timing rules, then checks outcomes (the booking that really exists, notes saved or retired, messages needed to reach the goal), not wording. Runs went from 4 of 9 to 6 of 9 to [Pawel: final]. It found what nothing else did: the assistant telling members they "already had" a booking it had just made, a latent double booking, answers dropped when written alongside an action, and a deposit described as refundable for a dinner already inside its window. It also found its own mistakes, such as counting a member's closing "thanks".
+**My own harness.** `scripts/simulate.py` plays the nine members in `scenarios/` over the real contract and timing rules, then checks outcomes (the booking that really exists, notes saved or retired, messages needed to reach the goal), not wording. Runs went from 4 of 9 to 6 of 9 to 7 of 9, where both failures were the scenarios' own mistakes (a simulated member inventing a constraint). It found what nothing else did: the assistant telling members they "already had" a booking it had just made, a latent double booking, answers dropped when written alongside an action, and a deposit described as refundable for a dinner already inside its window. It also found its own mistakes, such as counting a member's closing "thanks", and showed twice that thin data decided an outcome (one seafood restaurant in all of London), which led to doubling the venues.
 
 ## What I'd do next
 
 - **A status channel in the contract** (typing, searching, booking), so members see progress without it counting as a message.
 - **Pending confirmations and replies from restaurants**, with follow-up messages when they arrive.
 - **A background memory pass** after each conversation: the harness caught one missed note (an anniversary) in nine scenarios.
-- **Denser venue data**, three or four per area, so "nothing there" is as rare as in a real network.
 - **Cheaper long conversations:** summarise old search results in the transcript; leaner search results.
 - **Calendar integration**, so the assistant checks the member is free, not just their usual time.
 - **Scenarios in CI** against a staging deploy, as a regression check on every prompt change.

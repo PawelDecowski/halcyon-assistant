@@ -150,3 +150,13 @@ The checks' own mistakes: a closing "thanks" that is never sent was counted as a
 The checks: the remaining failures were the simulated member chatting after its goal was met. The harness now checks the bookings after every reply and limits the messages it took to reach the goal (booked, changed or cancelled as expected), not the total. A member's closing line must not ask for anything, since it is never sent. Charlotte's scenario accepts any Saturday table she agrees to.
 
 Noted, not acted on: Charlotte's anniversary reached the restaurant but was not saved as a note. One miss in nine scenarios is not yet evidence for the background memory pass of decision 4.
+
+## 19. Third harness run, and denser venue data
+
+7 of 9 passed; the deposit terms fix held (Marcus was told up front a £360 deposit "wouldn't be refundable"). Both failures were the scenarios: a simulated member invented a constraint, another leaked a later goal into the first conversation. Fixed in the personas.
+
+Two real problems from reading the transcripts:
+- **Working text reached a member** ("West London isn't a known area; try…"), a side effect of decision 17's "send all text written in a turn". Reverted: only the final message is sent, and the instructions now say so plainly, so the final message must answer everything (which was the original fix's aim).
+- **It booked when told to check something first.** A conditional booking ("check that before you confirm") now waits for the condition or the member's go-ahead.
+
+**Denser data.** For the second time thin data decided an outcome: there was one seafood restaurant in all of London, as there was one coeliac-safe kitchen in Islington. Added 23 venues (48 in all): three or four in most areas, more seafood, Japanese, French and Italian, and Hackney. Allergen levels follow a realistic mix (mostly shared kitchens, some separate preparation, few accredited). Deliberately not fitted to any scenario: Islington still has one coeliac-safe kitchen, so Oliver's third conversation stays impossible.

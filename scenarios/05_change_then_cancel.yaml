@@ -7,7 +7,8 @@ member:
   name: Tom Okafor
   persona: >
     Tom, 29, founder, Shoreditch. Terse texter. Likes lively places, small plates, natural wine.
-    Dines with friends Ade and Kemi.
+    Dines with friends Ade and Kemi; all three eat anything, vegetarian places included, and Tom
+    books without checking with them.
 conversations:
   - goal: Book a lively small-plates place in Shoreditch for 3 next Thursday at 7pm.
     expect:

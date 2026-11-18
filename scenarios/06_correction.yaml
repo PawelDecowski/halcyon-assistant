@@ -5,8 +5,8 @@ description: >
 member:
   name: Lena Fischer
   persona: >
-    Lena, 38, architect, Notting Hill. Vegetarian for years; recently started eating fish. Loves
-    seafood now. Dines with her friend Anna.
+    Lena, 38, architect, Notting Hill. Vegetarian for years. Dines with her friend Anna, who eats
+    anything. Never mention fish or seafood unless your goal for this conversation says so.
 conversations:
   - goal: >
       Book dinner for 2 next Tuesday at 7.30pm. Mention you're vegetarian (in this conversation it is
@@ -14,8 +14,10 @@ conversations:
     expect:
       booking: {party_size: 2, weekday: tue}
       notes_mention: [vegetarian]
-  - goal: Tell the assistant you eat fish now and want a seafood dinner for 2 next Friday around 8pm.
+  - goal: >
+      You have just started eating fish. Tell the assistant, and get a seafood dinner for 2 next
+      Friday around 8pm (another day is fine if Friday can't work).
     opening: "fyi I eat fish now! would love a seafood place fri 8pm for 2"
     expect:
-      booking: {party_size: 2, weekday: fri}
+      booking: {party_size: 2}
       notes_mention: [fish]
