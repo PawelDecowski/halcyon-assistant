@@ -40,11 +40,11 @@ About 5 hours of hands-on time over four evenings, not counting time spent waiti
 
 ## Running it
 
-Python 3.11 or newer.
+Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Copy `.env.example` to `.env` and add your Anthropic key (or export the variables in your shell).
 
 ```
-uv venv && source .venv/bin/activate && uv pip install -r requirements-dev.txt
-pytest                                    # offline, scripted model, no API key needed
-API_TOKEN=dev ANTHROPIC_API_KEY=... uvicorn --factory app.main:create_app
-python -m scripts.simulate scenarios/*.yaml --url http://localhost:8000 --token dev
+make setup          # create .venv and install everything
+make test           # offline tests, scripted model, no API key needed
+make run            # the service on localhost:8000
+make sim S=09       # one practice scenario against it; make sim-all for all nine
 ```
