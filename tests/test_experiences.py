@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import pytest
 
 from app.booking.mock.experiences import EXPERIENCES
-from app.booking.mock.experiences.common import CATEGORIES, EPOCH, REGIONS, dated, occurrences, shows
+from app.booking.mock.experiences.common import CATEGORIES, EPOCH, REGIONS, SCALES, dated, occurrences, once_a_year, shows
 from app.booking.mock.venues import DAYS
 from app.recommendations.tags import unknown_tags
 
@@ -40,6 +40,7 @@ def test_item_fields_are_valid(item):
     assert 0 <= item["demand"] <= 1 and item["max_party"] >= 1 and item["travel_minutes"] >= 0
     assert item["policy"]["mode"] in POLICY_MODES
     assert item["description"].strip()
+    assert item["scale"] in SCALES
     booking = item["booking"]
     assert all(1 <= month <= 12 for month in booking["months"])
     if booking["kind"] == "stay":
@@ -79,3 +80,26 @@ def test_a_day_range_cannot_wrap_past_sunday():
     """shows("sun-mon") would silently be an empty week."""
     with pytest.raises(ValueError):
         shows("sun-mon", "19:00")
+
+
+def test_scale_3_is_kept_for_the_few():
+    """Once in a lifetime has to be rare to mean anything: under a tenth of the catalogue."""
+    threes = [item for item in EXPERIENCES if item["scale"] == 3]
+    assert 0 < len(threes) <= len(EXPERIENCES) // 10
+
+
+def test_once_a_year_has_exactly_one_date_in_any_twelve_months():
+    """A one-off stays a one-off whichever day the catalogue is looked at."""
+    booking = once_a_year("sat", "19:30", week=48, seats=10)
+    for offset in range(0, 400, 37):
+        start = date(2026, 1, 1) + timedelta(days=offset)
+        assert len(occurrences(booking, start, start + timedelta(days=364))) == 1
+
+
+def test_the_catalogue_has_one_offs_where_they_belong():
+    """Concerts, theatre and meeting stars each have single-date events; some are coming up soon."""
+    start = date(2026, 11, 26)
+    one_offs = [item for item in EXPERIENCES if item["booking"]["kind"] != "stay"
+                and len(occurrences(item["booking"], start, start + timedelta(days=364))) == 1]
+    assert {"concerts", "theatre", "meeting stars"} <= {item["category"] for item in one_offs}
+    assert any(occurrences(item["booking"], start, start + timedelta(weeks=4)) for item in one_offs)

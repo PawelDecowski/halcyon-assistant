@@ -15,7 +15,7 @@ TODAY = date(2026, 11, 26)
 
 def item(id: str, tags: list[str], category: str = "concerts", travel: int = 20, week: int = 0) -> dict:
     """A small catalogue item for tests: a Friday event in the given week of every 4."""
-    return experience(category, id, id, place="Soho", region="London", travel=travel, price=50, tags=tags,
+    return experience(category, id, id, scale=1, place="Soho", region="London", travel=travel, price=50, tags=tags,
                       text="Test item.", booking=dated(shows("fri", "19:30"), seats=10, every_weeks=4, week=week),
                       max_party=4, demand=0.5, policy=prepaid(None))
 
@@ -64,7 +64,7 @@ def test_reason_names_the_shared_tags_in_the_members_order():
 
 def test_next_date_of_a_stay_is_its_next_check_in_day_in_an_open_month():
     """A summer villa with Saturday check-in next opens on the first Saturday in May."""
-    villa = experience("hotels and villas", "villa", "Villa", place="Tuscany", region="Europe", travel=240,
+    villa = experience("hotels and villas", "villa", "Villa", scale=1, place="Tuscany", region="Europe", travel=240,
                        price=3000, per="night", tags=["italian", "wine", "countryside"], text="Test villa.",
                        booking=stay(1, "villa", 10, min_nights=7, check_in_days="sat", months=[5, 6, 7, 8, 9]),
                        max_party=10, demand=0.5, policy=stay_deposit(50, 60))

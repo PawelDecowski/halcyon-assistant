@@ -6,6 +6,7 @@ Every experience is a dict with the same fields, built by `experience()`:
   place, region        where it happens; region is one of REGIONS
   travel_minutes       typical door-to-door time from central London
   description          one or two sentences in plain words
+  scale                how much it is worth travelling or rearranging plans for, one of SCALES
   tags                 3 to 6 tags from app/recommendations/tags.py
   price_gbp, price_per what it costs: per "person", per "night" (stays) or per "booking"
   booking              how it is booked, from dated(), slots() or stay() below
@@ -35,6 +36,12 @@ EPOCH = date(2026, 1, 5)
 
 CATEGORIES = ["concerts", "nature", "meeting stars", "theatre", "watchmaking", "hotels and villas"]
 REGIONS = ["London", "UK", "Europe", "Further afield"]
+SCALES = {
+    1: "A treat: good, but there is always another (a dinner, a weekly tour, a hotel).",
+    2: "Special: limited or notable (a premiere, a festival, a masterclass, a residency).",
+    3: "Once in a lifetime: rare access or a rare moment (meeting a star, the migration from a balloon).",
+}
+"""Scale is written by hand for each item: price, demand and category measure other things."""
 
 
 def shows(days: str, *times: str) -> dict[str, list[str]]:
@@ -76,6 +83,16 @@ def dated(*parts: dict[str, list[str]], seats: int, every_weeks: int = 1, week: 
         raise ValueError("week must be inside the cycle")
     return {"kind": "dated", "times": _merge(parts), "every_weeks": every_weeks, "week": week, "seats": seats,
             "months": months or ALL_YEAR}
+
+
+def once_a_year(day: str, time: str, *, week: int, seats: int) -> dict:
+    """A single date a year: one day and time in the given week of a 52-week cycle from EPOCH.
+
+    Any 12 months hold exactly one date, so it counts as a one-off whenever it is
+    looked at, and the catalogue never runs out of one-offs.
+    once_a_year("sat", "19:30", week=48, seats=20) is one Saturday in early December.
+    """
+    return dated(shows(day, time), seats=seats, every_weeks=52, week=week)
 
 
 def slots(*parts: dict[str, list[str]], places: int, duration_minutes: int, months: list[int] | None = None) -> dict:
@@ -136,7 +153,7 @@ def stay_deposit(percent: int, refundable_until_days: int) -> dict:
     return {"mode": "stay_deposit", "deposit_percent": percent, "refundable_until_days": refundable_until_days}
 
 
-def experience(category: str, id: str, name: str, *, place: str, region: str, travel: int, price: int,
+def experience(category: str, id: str, name: str, *, scale: int, place: str, region: str, travel: int, price: int,
                tags: list[str], text: str, booking: dict, max_party: int, demand: float, policy: dict,
                per: str = "person", step_free: bool = True, min_age: int | None = None,
                star: dict | None = None, notes: str | None = None) -> dict:
@@ -145,7 +162,9 @@ def experience(category: str, id: str, name: str, *, place: str, region: str, tr
     Each category module wraps this with its own category, for example
     concert = functools.partial(experience, "concerts").
     """
-    return {"id": id, "name": name, "category": category, "place": place, "region": region,
+    if scale not in SCALES:
+        raise ValueError(f"{id}: scale must be one of {sorted(SCALES)}")
+    return {"id": id, "name": name, "category": category, "scale": scale, "place": place, "region": region,
             "travel_minutes": travel, "description": text, "tags": tags, "price_gbp": price,
             "price_per": per, "booking": booking, "max_party": max_party, "demand": demand,
             "policy": policy, "step_free": step_free, "min_age": min_age, "star": star, "notes": notes}
