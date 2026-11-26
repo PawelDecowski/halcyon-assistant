@@ -3,6 +3,7 @@
 #   make setup          create .venv and install everything (needs uv)
 #   make test           offline tests, no API key needed
 #   make run            the service on localhost:8000 (needs ANTHROPIC_API_KEY)
+#   make dev            the same, restarting whenever a file changes (not during practice runs)
 #   make sim S=09       one practice scenario against the local service
 #   make sim-all        all scenarios; output also saved to run.txt
 #
@@ -17,7 +18,7 @@ PORT      ?= 8000
 API_TOKEN ?= dev
 URL       ?= http://localhost:$(PORT)
 
-.PHONY: help setup test run sim sim-all
+.PHONY: help setup test run dev sim sim-all
 
 help:
 	@sed -n 's/^#   //p' Makefile
@@ -31,6 +32,10 @@ test:
 
 run: require-key
 	uv run uvicorn --factory app.main:create_app --port $(PORT)
+
+# A restart cuts off any reply being written; it is redone on the next start, repeating its model calls.
+dev: require-key
+	uv run uvicorn --factory app.main:create_app --port $(PORT) --reload --reload-dir app
 
 sim: require-key
 	@test -n "$(S)" || { echo "Choose a scenario by its number, e.g. make sim S=09"; exit 1; }
