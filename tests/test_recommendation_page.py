@@ -33,11 +33,32 @@ def test_a_profile_page_shows_ranked_cards_for_the_given_date(tmp_path):
     assert page.text.count('class="card"') >= 5
 
 
-def test_real_member_ids_and_unknown_ids_are_not_found(tmp_path):
-    """Only sample profiles are served, so a real member's preferences can never appear here."""
+def test_unknown_ids_are_not_found(tmp_path):
+    """An id that is neither a sample nor a member in the database is a 404."""
     with client(tmp_path) as c:
         assert c.get(f"/suggestions/{uuid.uuid4()}").status_code == 404
         assert c.get("/suggestions/profile-nobody").status_code == 404
+
+
+def test_members_from_conversations_are_listed_with_their_tags_and_suggestions(tmp_path):
+    """A member with a tagged note appears on the index and gets suggestions; one without tags says so."""
+    from app.db import Database
+    from app.recommendations.tags import VOCABULARY_HASH
+
+    db = Database(str(tmp_path / "t.db"))
+    tagged, untagged = str(uuid.uuid4()), str(uuid.uuid4())
+    db.upsert_member(tagged, "Priya Shah")
+    db.set_note_tags(db.add_note(tagged, "likes", "Loves jazz clubs", None), ["jazz", "intimate"], [], VOCABULARY_HASH)
+    db.upsert_member(untagged, "Tom Reed")
+    db.add_note(untagged, "likes", "Into natural wine", None)
+    with client(tmp_path) as c:
+        index = c.get("/suggestions").text
+        page = c.get(f"/suggestions/{tagged}?today=2026-11-26").text
+        waiting = c.get(f"/suggestions/{untagged}").text
+    assert "Priya Shah" in index and "Likes jazz, intimate" in index
+    assert "Tom Reed" in index and "1 note(s) waiting to be tagged" in index
+    assert "Loves jazz clubs" in page and "Because you like jazz" in page
+    assert "Nothing in the catalogue matches yet." in waiting and "still waiting to be tagged" in waiting
 
 
 def test_a_bad_date_is_refused(tmp_path):

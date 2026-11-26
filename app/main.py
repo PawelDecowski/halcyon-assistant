@@ -7,7 +7,7 @@ Not part of Halcyon's contract, a review and testing aid behind the same token:
 GET  /members/{member_id}/bookings  -> what the booking system actually holds
 GET  /members/{member_id}/notes     -> what the assistant has learned, including retired notes
 
-Also not part of the contract, open and limited to invented sample members:
+Also not part of the contract, open because every member is simulated:
 GET  /suggestions, /suggestions/{profile_id}  -> see app/recommendations/page.py
 
 POST only stores the message; the reply is written in the background by
@@ -173,7 +173,7 @@ def create_app(api_token: str | None = None, db_path: str | None = None,
         return {"notes": db.query("SELECT id, category, note, active, created_at, retired_at FROM member_notes "
                                   "WHERE member_id = ? ORDER BY created_at", (member_id,))}
 
-    add_recommendation_pages(app)
+    add_recommendation_pages(app, db)
     app.state.worker = worker
     app.state.tagger = tagger
     return app

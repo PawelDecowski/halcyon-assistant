@@ -220,6 +220,10 @@ class Database:
                      "VALUES (?, ?, ?, ?, ?, ?)", (note_id, member_id, category, note, conversation_id, now_iso()))
         return note_id
 
+    def members(self) -> list[dict]:
+        """Every member, most recently active first: id, name, updated_at."""
+        return self.query("SELECT id, name, updated_at FROM members ORDER BY updated_at DESC")
+
     def notes_needing_tags(self, vocabulary_hash: str, member_id: str | None = None) -> list[dict]:
         """Active likes and dislikes notes not yet tagged, or tagged under another vocabulary.
 

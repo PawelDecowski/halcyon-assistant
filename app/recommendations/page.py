@@ -1,14 +1,15 @@
-"""The suggestions review page: plain HTML, no login, sample profiles only.
+"""The suggestions review page: plain HTML, no login.
 
-GET /suggestions                         -> the sample profiles, with their likes and dislikes
-GET /suggestions/{profile_id}            -> one profile's ranked suggestions
-GET /suggestions/{profile_id}?today=...  -> the same, as if today were that date (YYYY-MM-DD)
+GET /suggestions                         -> sample members and members from conversations, with their tags
+GET /suggestions/{member_id}             -> one member's ranked suggestions
+GET /suggestions/{member_id}?today=...   -> the same, as if today were that date (YYYY-MM-DD)
 
-It serves only the ids in SAMPLE_PROFILES, so it can never show a real
-member's preferences; real members will need their own access. Nothing shown
-is recorded. Each card has a collapsed "why this order" note saying, in words,
-where its points come from and how ties were broken, for judging the
-ranking, not for members.
+Every member is simulated (the hand-written samples, and Halcyon's and our
+harness's test members), so the page is open; it shows names and likes and
+dislikes notes that the token-protected review endpoints otherwise guard.
+Nothing shown is recorded. Each card has a collapsed "why this order" note
+saying, in words, where its points come from and how ties were broken, for
+judging the ranking, not for members.
 """
 from __future__ import annotations
 
@@ -20,10 +21,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
 from app.booking.mock.experiences import EXPERIENCES
+from app.db import Database
 from app.recommendations.sample_profiles import SAMPLE_PROFILES
 from app.recommendations.scoring import (ANY_DAY, DAY_TRIP, FAR, LAST_CHANCE, LOCAL, NEAR, OCCASIONAL, ONE_OFF,
                                          RARE, Suggestion, band, recommend)
-from app.recommendations.tags import INTEREST_PHRASES, QUALITY_PHRASES, tag_weight
+from app.recommendations.tags import INTEREST_PHRASES, QUALITY_PHRASES, VOCABULARY_HASH, tag_weight
 
 LONDON = ZoneInfo("Europe/London")
 PROFILES = {profile["id"]: profile for profile in SAMPLE_PROFILES}
@@ -119,33 +121,62 @@ def _today(value: str | None) -> date:
         raise HTTPException(status_code=422, detail="today must be a date, YYYY-MM-DD")
 
 
-def add_recommendation_pages(app: FastAPI) -> None:
+def _profile_card(profile: dict, extra: str = "") -> str:
+    """One member on the index: name linking to their page, likes, dislikes, and an optional note."""
+    likes = f"Likes {_tag_words(profile['likes'])}" if profile["likes"] else "No likes tagged yet"
+    dislikes = f"<div class=\"meta\">Not {escape(_tag_words(profile['dislikes']))}</div>" if profile["dislikes"] else ""
+    return f"""<div class="card"><h2><a href="/suggestions/{escape(profile["id"])}">{escape(profile["name"])}</a></h2>
+<div class="meta">{escape(likes)}</div>{dislikes}{f'<div class="meta">{escape(extra)}</div>' if extra else ""}</div>"""
+
+
+def _member_profile(db: Database, member: dict) -> dict:
+    """A member from conversations in the same shape as a sample profile, from their tagged notes."""
+    tags = db.member_tags(member["id"])
+    notes = [n["note"] for n in db.active_notes(member["id"]) if n["category"] in ("likes", "dislikes")]
+    untagged = len(db.notes_needing_tags(VOCABULARY_HASH, member["id"]))
+    return {"id": member["id"], "name": member["name"], "notes": notes, "untagged": untagged, **tags}
+
+
+def add_recommendation_pages(app: FastAPI, db: Database) -> None:
     """Register the two review pages on the app."""
 
     @app.get("/suggestions", response_class=HTMLResponse)
     async def recommendation_profiles():
-        """The sample profiles, each linking to its suggestions."""
-        cards = "".join(f"""<div class="card"><h2><a href="/suggestions/{escape(p["id"])}">{escape(p["name"])}</a></h2>
-<div class="meta">Likes {escape(_tag_words(p["likes"]))}</div>
-<div class="meta">Not {escape(_tag_words(p["dislikes"]))}</div></div>""" for p in SAMPLE_PROFILES)
+        """Sample members and members from conversations, each linking to their suggestions."""
+        samples = "".join(_profile_card(p) for p in SAMPLE_PROFILES)
+        members = []
+        for member in db.members():
+            profile = _member_profile(db, member)
+            waiting = f"{profile['untagged']} note(s) waiting to be tagged" if profile["untagged"] else ""
+            extra = waiting or ("" if profile["likes"] else "Nothing to match yet")
+            members.append(_profile_card(profile, extra))
+        from_conversations = "".join(members) or '<p class="muted">No members have written in yet.</p>'
         return _page("Suggestions", f"""<h1>Suggestions</h1>
-<p class="muted">Sample members, written by hand until real members' notes are turned into tags.
-Suggestions come from the mock catalogue of {len(EXPERIENCES)} experiences.</p>{cards}""")
+<p class="muted">Suggestions come from the mock catalogue of {len(EXPERIENCES)} experiences. Every member here is
+simulated: the hand-written samples, and members who wrote in through the conversations endpoint.</p>
+<h2>Sample members</h2>{samples}
+<h2>Members from conversations</h2>
+<p class="muted">Tags come from their likes and dislikes notes, tagged after each turn.</p>{from_conversations}""")
 
     @app.get("/suggestions/{profile_id}", response_class=HTMLResponse)
     async def recommendation_list(profile_id: str, today: str | None = None):
-        """One sample profile's ranked suggestions, as of today or the given date."""
+        """One member's ranked suggestions, as of today or the given date."""
         profile = PROFILES.get(profile_id)
         if profile is None:
-            raise HTTPException(status_code=404, detail="Only sample profiles are shown here")
+            member = db.one("SELECT id, name FROM members WHERE id = ?", (profile_id,))
+            if member is None:
+                raise HTTPException(status_code=404, detail="No such member")
+            profile = _member_profile(db, member)
         on = _today(today)
         suggestions = recommend(profile["likes"], profile["dislikes"], EXPERIENCES, on)
-        notes = "".join(f"<li>{escape(note)}</li>" for note in profile["notes"])
+        notes = "".join(f"<li>{escape(note)}</li>" for note in profile["notes"]) or "<li>No likes or dislikes noted yet</li>"
+        waiting = (f'<p class="muted">{profile["untagged"]} note(s) still waiting to be tagged.</p>'
+                   if profile.get("untagged") else "")
         cards = "".join(_card(rank, s) for rank, s in enumerate(suggestions, start=1)) or \
             '<p class="muted">Nothing in the catalogue matches yet.</p>'
-        return _page(profile["name"], f"""<p><a href="/suggestions">All sample members</a></p>
+        return _page(profile["name"], f"""<p><a href="/suggestions">All members</a></p>
 <h1>{escape(profile["name"])}</h1>
-<ul class="notes muted">{notes}</ul>
+<ul class="notes muted">{notes}</ul>{waiting}
 <form method="get"><label>As of <input type="date" name="today" value="{on.isoformat()}"></label>
 <button type="submit">Show</button></form>
 <p class="muted">{len(suggestions)} suggestions for {on.strftime("%A")} {on.day} {on.strftime("%B %Y")}.</p>{cards}""")
