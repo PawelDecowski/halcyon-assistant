@@ -38,9 +38,18 @@ def offered(it: dict) -> date | None:
 
 def test_more_shared_likes_rank_higher():
     """Two shared tags beat one; an item sharing none is not suggested."""
-    items = [item("one", ["jazz", "quiet", "art"]), item("two", ["jazz", "wine", "art"]),
-             item("none", ["golf", "art", "quiet"])]
+    items = [item("one", ["jazz", "golf", "art"]), item("two", ["jazz", "wine", "art"]),
+             item("none", ["golf", "art", "drama"])]
     assert ids(recommend(["jazz", "wine"], [], items, TODAY)) == ["two", "one"]
+
+
+def test_a_quality_counts_half_and_alone_is_not_enough():
+    """One shared quality is left out; two count as much as one interest; an interest plus a quality beats both."""
+    items = [item("groups-only", ["drama", "art", "groups"]), item("two-qualities", ["drama", "intimate", "romantic"]),
+             item("interest", ["jazz", "art", "drama"]), item("interest-and-quality", ["jazz", "art", "intimate"])]
+    found = recommend(["jazz", "groups", "intimate", "romantic"], [], items, TODAY)
+    assert {s.item["id"]: s.score for s in found} == {"interest-and-quality": 1.5, "interest": 1.0, "two-qualities": 1.0}
+    assert found[0].item["id"] == "interest-and-quality"
 
 
 def test_any_disliked_tag_leaves_an_item_out():
@@ -49,18 +58,22 @@ def test_any_disliked_tag_leaves_an_item_out():
     assert ids(recommend(["jazz", "wine"], ["lively"], items, TODAY)) == ["quiet-jazz"]
 
 
-def test_one_category_cannot_fill_the_list():
-    """With a limit of 3 per category, the fourth concert gives way to a lower-scoring play."""
+def test_variety_first_then_held_back_items_fill_a_short_list():
+    """The fourth concert gives way to a weaker play, then still fills the list, which is short."""
     concerts = [item(f"concert-{n}", ["jazz", "wine", "art"]) for n in range(4)]
     play = item("play", ["jazz", "drama", "quiet"], category="theatre")
     assert ids(recommend(["jazz", "wine"], [], concerts + [play], TODAY)) == [
+        "concert-0", "concert-1", "concert-2", "play", "concert-3"]
+    assert ids(recommend(["jazz", "wine"], [], concerts + [play], TODAY, limit=4)) == [
         "concert-0", "concert-1", "concert-2", "play"]
 
 
-def test_reason_names_the_shared_tags_in_the_members_order():
-    """The reason reads in the order the member's interests are listed, in plain words."""
-    [suggestion] = recommend(["wine", "fine-dining"], [], [item("x", ["fine-dining", "wine", "art"])], TODAY)
-    assert suggestion.reason == "Because you like wine and fine dining"
+def test_reason_names_interests_first_then_qualities():
+    """Interests in the member's order, in plain words; qualities follow, or stand alone."""
+    [both] = recommend(["wine", "intimate", "fine-dining"], [], [item("x", ["fine-dining", "wine", "intimate"])], TODAY)
+    assert both.reason == "Because you like wine and fine dining; it's also intimate"
+    [qualities] = recommend(["intimate", "groups"], [], [item("y", ["drama", "intimate", "groups"])], TODAY)
+    assert qualities.reason == "It's intimate and good for groups, as you like"
 
 
 # Realistic dates
@@ -143,7 +156,7 @@ def test_patterns_describe_the_dates_in_words():
 
 @pytest.mark.parametrize("profile", SAMPLE_PROFILES, ids=lambda p: p["id"])
 def test_every_sample_profile_gets_suggestions_it_would_accept(profile):
-    """No disliked tag, at least one liked tag, at most 3 per category, and far and soon only when special."""
+    """No disliked tag, a liked tag, items over 3 per category only at the end, and far and soon only when special."""
     suggestions = recommend(profile["likes"], profile["dislikes"], EXPERIENCES, TODAY)
     assert suggestions
     for s in suggestions:
@@ -154,7 +167,14 @@ def test_every_sample_profile_gets_suggestions_it_would_accept(profile):
             if s.next_date < TODAY + timedelta(weeks=3):
                 assert s.item["scale"] >= 2
     categories = [s.item["category"] for s in suggestions]
-    assert max(categories.count(c) for c in categories) <= 3
+    seen: dict[str, int] = {}
+    held_back_started = False
+    for category in categories:
+        seen[category] = seen.get(category, 0) + 1
+        if seen[category] > 3:
+            held_back_started = True
+        else:
+            assert not held_back_started, "a held-back item came before the variety-first part was used up"
 
 
 def test_runs_of_days_and_yearly_runs_read_naturally():
@@ -177,3 +197,24 @@ def test_soonness_falls_to_nothing_six_months_out():
     [suggestion] = recommend(["jazz"], [], [item("next-autumn", booking=once_a_year("sat", "19:30", week=40, seats=10))],
                              TODAY)
     assert suggestion.days_ahead > 182 and suggestion.components["soonness"] == 0.0
+
+
+def test_the_sports_fan_is_not_padded_with_group_outings():
+    """Items sharing only `groups` with the sports fan are no longer suggested."""
+    fan = next(p for p in SAMPLE_PROFILES if p["id"] == "profile-sports-fan")
+    for s in recommend(fan["likes"], fan["dislikes"], EXPERIENCES, TODAY):
+        assert s.shared != ["groups"]
+
+
+def test_the_sports_fan_gets_motor_racing_once_the_list_is_short():
+    """Motor racing meetings were held back by the limit on meeting stars; a short list now includes them."""
+    fan = next(p for p in SAMPLE_PROFILES if p["id"] == "profile-sports-fan")
+    found = recommend(fan["likes"], fan["dislikes"], EXPERIENCES, TODAY)
+    assert any("motorsport" in s.shared for s in found)
+
+
+def test_interests_read_as_phrases():
+    """Tags become words a member would use."""
+    [suggestion] = recommend(["japanese", "walking-and-hiking"], [], [item("x", ["japanese", "walking-and-hiking", "art"])],
+                             TODAY)
+    assert suggestion.reason == "Because you like all things Japanese and walks"

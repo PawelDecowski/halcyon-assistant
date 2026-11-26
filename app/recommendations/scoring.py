@@ -1,7 +1,9 @@
 """Stage 1 recommendations: one list, matched on tags, made realistic by distance and timing.
 
-Matching: an item scores one point for every tag it shares with the member's
-likes. Any disliked tag leaves it out; an item sharing no liked tag is not
+Matching: an item scores 1 for every interest it shares with the member's likes
+and 0.5 for every quality (atmosphere, format, occasion), and needs at least
+MIN_MATCH to be suggested: one quality alone says too little. A member we
+know little about gets a short list rather than a padded one. Any disliked tag leaves it out; an item sharing no liked tag is not
 suggested (related interests are a later stage).
 
 Realistic dates: nothing is suggested before it could sensibly be reached
@@ -16,7 +18,8 @@ Order: the tag match, then the shorter journey, then the more urgent
 suggestion also carries its components (match, nearness, urgency, scale,
 soonness), and ordering lives in rank_key() alone, so a weighted score can
 replace it later without changing anything else. At most `per_category`
-items from one category make the list.
+items from one category make the list while others can fill it; if the list
+is still short, the best items held back by that limit fill it.
 
     recommend(["jazz", "wine"], ["lively"], EXPERIENCES, date(2026, 11, 26))
     -> [Suggestion(item=<Jazz Supper Club ...>, score=2, shared=["jazz", "wine"], ...), ...]
@@ -28,6 +31,10 @@ from datetime import date, timedelta
 
 from app.booking.mock.experiences.common import occurrences
 from app.booking.mock.venues import DAYS
+from app.recommendations.tags import INTEREST_PHRASES, QUALITIES, QUALITY_PHRASES, tag_weight
+
+MIN_MATCH = 1.0
+"""The smallest match suggested: one shared interest, or two shared qualities."""
 
 YEAR = timedelta(days=365)
 
@@ -73,7 +80,7 @@ class Suggestion:
     """
 
     item: dict
-    score: int
+    score: float
     shared: list[str]
     next_date: date
     urgency: str
@@ -95,8 +102,17 @@ class Suggestion:
 
     @property
     def reason(self) -> str:
-        """The line shown to the member, e.g. "Because you like jazz and wine"."""
-        return "Because you like " + _join([tag.replace("-", " ") for tag in self.shared])
+        """The line shown to the member: interests first, then qualities.
+
+        "Because you like jazz and wine", "Because you like jazz; it's also intimate",
+        or for qualities alone "It's intimate and romantic, as you like".
+        """
+        interests = [INTEREST_PHRASES[tag] for tag in self.shared if tag not in QUALITIES]
+        qualities = [QUALITY_PHRASES[tag] for tag in self.shared if tag in QUALITIES]
+        if not interests:
+            return f"It's {_join(qualities)}, as you like"
+        line = "Because you like " + _join(interests)
+        return line + (f"; it's also {_join(qualities)}" if qualities else "")
 
 
 def _join(words: list[str]) -> str:
@@ -237,7 +253,7 @@ def suggest(item: dict, shared: list[str], today: date) -> Suggestion | None:
     urgency = how_rare
     if how_rare in (OCCASIONAL, ANY_DAY) and is_last_chance(dates, offered):
         urgency = LAST_CHANCE
-    return Suggestion(item=item, score=len(shared), shared=shared, next_date=offered, urgency=urgency,
+    return Suggestion(item=item, score=sum(tag_weight(tag) for tag in shared), shared=shared, next_date=offered, urgency=urgency,
                       pattern=pattern(item, how_rare, offered), days_ahead=(offered - today).days)
 
 
@@ -264,7 +280,7 @@ def recommend(likes: list[str], dislikes: list[str], items: list[dict], today: d
     for item in items:
         tags = set(item["tags"])
         shared = [tag for tag in likes if tag in tags]
-        if tags & disliked or not shared:
+        if tags & disliked or sum(tag_weight(tag) for tag in shared) < MIN_MATCH:
             continue
         suggestion = suggest(item, shared, today)
         if suggestion:
@@ -272,13 +288,16 @@ def recommend(likes: list[str], dislikes: list[str], items: list[dict], today: d
     candidates.sort(key=rank_key)
 
     chosen: list[Suggestion] = []
+    held_back: list[Suggestion] = []
     per_category_count: dict[str, int] = {}
     for suggestion in candidates:
         category = suggestion.item["category"]
         if per_category_count.get(category, 0) >= per_category:
+            held_back.append(suggestion)
             continue
         chosen.append(suggestion)
         per_category_count[category] = per_category_count.get(category, 0) + 1
         if len(chosen) == limit:
-            break
-    return chosen
+            return chosen
+    # The limit is for variety, not to starve a short list: fill it with the best of what was held back.
+    return chosen + held_back[: limit - len(chosen)]

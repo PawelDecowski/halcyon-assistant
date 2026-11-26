@@ -127,3 +127,53 @@ def unknown_tags(tags: list[str]) -> list[str]:
     unknown_tags(["jazz", "loud"]) gives ["loud"]; an empty result means all are valid.
     """
     return [tag for tag in tags if tag not in TAGS]
+
+
+QUALITY_GROUPS = ["atmosphere", "format", "occasion"]
+"""Groups whose tags say what an experience is like, not what it is. The rest are interests."""
+
+QUALITIES: set[str] = {tag for group in QUALITY_GROUPS for tag in TAG_GROUPS[group]}
+
+INTEREST_WEIGHT, QUALITY_WEIGHT = 1.0, 0.5
+"""A shared interest counts in full; a shared quality half, since qualities are spread across the
+catalogue (`quiet` is on 40 items) and say little alone. Two qualities count as much as one interest."""
+
+QUALITY_PHRASES = {
+    "lively": "lively", "quiet": "quiet", "romantic": "romantic", "intimate": "intimate",
+    "glamorous": "glamorous", "relaxed": "relaxed", "formal": "formal", "adventurous": "adventurous",
+    "views": "with a view", "family-friendly": "family-friendly", "late-night": "late",
+    "tasting-menu": "a tasting menu", "small-plates": "small plates", "counter-and-chefs-table": "at the counter",
+    "live-music": "with live music", "hands-on": "hands-on", "guided-tour": "guided",
+    "behind-the-scenes": "behind the scenes", "exclusive-use": "yours alone",
+    "special-occasion": "one for a special occasion", "business": "good for business", "groups": "good for groups",
+}
+"""How each quality reads after "it's": "it's also intimate and good for groups"."""
+
+
+def tag_weight(tag: str) -> float:
+    """What one shared tag adds to a match: tag_weight("jazz") is 1.0, tag_weight("quiet") is 0.5."""
+    return QUALITY_WEIGHT if tag in QUALITIES else INTEREST_WEIGHT
+
+
+INTEREST_PHRASES = {
+    "japanese": "all things Japanese", "italian": "all things Italian", "french": "all things French",
+    "british": "British classics", "spanish": "all things Spanish", "middle-eastern": "Middle Eastern culture",
+    "indian": "all things Indian", "chinese": "all things Chinese", "southeast-asian": "Southeast Asia",
+    "korean": "all things Korean", "mexican": "Latin America", "seafood": "seafood",
+    "steak-and-grill": "a good steak", "vegetarian-led": "vegetarian cooking", "fine-dining": "fine dining",
+    "wine": "wine", "natural-wine": "natural wine", "cocktails": "cocktails", "spirits": "fine spirits",
+    "spicy": "spicy food",
+    "classical": "classical music", "opera": "opera", "jazz": "jazz", "rock-and-pop": "pop music",
+    "electronic": "electronic music", "folk-and-acoustic": "folk music",
+    "drama": "theatre", "musicals": "musicals", "comedy": "comedy", "dance": "dance", "film-and-tv": "film",
+    "art": "art", "design-and-architecture": "architecture", "history-and-heritage": "history", "books-and-ideas": "books",
+    "fashion": "fashion",
+    "watches": "watches", "craftsmanship": "fine craftsmanship",
+    "sport": "sport", "motorsport": "motor racing", "football": "football", "tennis": "tennis", "golf": "golf",
+    "wildlife": "wildlife", "walking-and-hiking": "walks", "on-the-water": "time on the water", "gardens": "gardens",
+    "stargazing": "stargazing", "outdoors": "being outdoors",
+    "beach": "beaches", "mountains": "the mountains", "countryside": "the countryside", "city-break": "city breaks",
+    "spa-and-wellness": "spas",
+}
+"""How each interest reads after "Because you like": "Because you like all things Japanese and walks".
+Phrases avoid "and" inside them, so a list of them still reads clearly."""

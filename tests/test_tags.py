@@ -34,3 +34,17 @@ def test_sample_profiles_use_only_known_tags():
         assert unknown_tags(profile["likes"] + profile["dislikes"]) == [], profile["id"]
         assert not set(profile["likes"]) & set(profile["dislikes"]), profile["id"]
         assert profile["notes"], profile["id"]
+
+
+def test_every_quality_has_a_phrase_for_the_reason_line():
+    """A quality without a phrase would break the reason shown to the member."""
+    from app.recommendations.tags import QUALITIES, QUALITY_PHRASES
+
+    assert set(QUALITY_PHRASES) == QUALITIES
+
+
+def test_every_interest_has_a_phrase_for_the_reason_line():
+    """Every tag that is not a quality is an interest, and has a phrase."""
+    from app.recommendations.tags import INTEREST_PHRASES, QUALITIES, TAGS
+
+    assert set(INTEREST_PHRASES) == set(TAGS) - QUALITIES
