@@ -84,6 +84,14 @@ class Database:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.executescript(SCHEMA)
+            self._add_missing_columns()
+
+    def _add_missing_columns(self) -> None:
+        """Add columns introduced after a database was created, so an existing volume keeps working."""
+        existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(member_notes)")}
+        for column in ("liked_tags", "disliked_tags", "tags_vocabulary_hash"):
+            if column not in existing:
+                self._conn.execute(f"ALTER TABLE member_notes ADD COLUMN {column} TEXT")
 
     # -- low level -----------------------------------------------------------
     def executescript(self, sql: str) -> None:
@@ -211,6 +219,43 @@ class Database:
         self.execute("INSERT INTO member_notes (id, member_id, category, note, conversation_id, created_at) "
                      "VALUES (?, ?, ?, ?, ?, ?)", (note_id, member_id, category, note, conversation_id, now_iso()))
         return note_id
+
+    def notes_needing_tags(self, vocabulary_hash: str, member_id: str | None = None) -> list[dict]:
+        """Active likes and dislikes notes not yet tagged, or tagged under another vocabulary.
+
+        With `member_id`, only that member's; without, everyone's (the pass at startup).
+        """
+        sql = ("SELECT id, member_id, category, note FROM member_notes WHERE active = 1 "
+               "AND category IN ('likes', 'dislikes') "
+               "AND (tags_vocabulary_hash IS NULL OR tags_vocabulary_hash != ?)")
+        params: tuple = (vocabulary_hash,)
+        if member_id is not None:
+            sql, params = sql + " AND member_id = ?", (vocabulary_hash, member_id)
+        return self.query(sql + " ORDER BY created_at", params)
+
+    def set_note_tags(self, note_id: str, liked: list[str], disliked: list[str], vocabulary_hash: str) -> None:
+        """Store the tags found in a note, and the vocabulary they were chosen from."""
+        self.execute("UPDATE member_notes SET liked_tags = ?, disliked_tags = ?, tags_vocabulary_hash = ? WHERE id = ?",
+                     (json.dumps(liked), json.dumps(disliked), vocabulary_hash, note_id))
+
+    def member_tags(self, member_id: str) -> dict[str, list[str]]:
+        """The member's liked and disliked tags, from their active tagged notes.
+
+        If two notes disagree about a tag, the newer note wins:
+        {"likes": ["jazz", "wine"], "dislikes": ["lively"]}.
+        """
+        rows = self.query("SELECT liked_tags, disliked_tags FROM member_notes WHERE member_id = ? AND active = 1 "
+                          "AND tags_vocabulary_hash IS NOT NULL ORDER BY created_at", (member_id,))
+        verdict: dict[str, bool] = {}
+        for row in rows:
+            for tag in json.loads(row["liked_tags"] or "[]"):
+                verdict.pop(tag, None)
+                verdict[tag] = True
+            for tag in json.loads(row["disliked_tags"] or "[]"):
+                verdict.pop(tag, None)
+                verdict[tag] = False
+        return {"likes": [t for t, liked in verdict.items() if liked],
+                "dislikes": [t for t, liked in verdict.items() if not liked]}
 
     def retire_note(self, member_id: str, note_id: str) -> bool:
         """Retire an active note of this member. Returns False if there was no such note."""

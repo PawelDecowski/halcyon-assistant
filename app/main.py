@@ -31,6 +31,7 @@ from .booking.interface import BookingProvider
 from .booking.mock.provider import MockBookingProvider
 from .db import Database
 from .recommendations.page import add_recommendation_pages
+from .recommendations.tagging import TAGGING_MODEL, NoteTagger
 from .worker import Worker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -89,8 +90,12 @@ def make_mock_provider(db: Database) -> MockBookingProvider:
 
 def create_app(api_token: str | None = None, db_path: str | None = None,
                provider: BookingProvider | None = None, llm: LLM | None = None,
-               burst_wait_s: float | None = None) -> FastAPI:
-    """Build the app. Settings come from env; tests pass them in, plus a provider or model if they need one."""
+               burst_wait_s: float | None = None, tagging_llm: LLM | None = None) -> FastAPI:
+    """Build the app. Settings come from env; tests pass them in, plus a provider or model if they need one.
+
+    Note tagging uses Claude Haiku (TAGGING_MODEL env) in a real run. A test that passes its own `llm`
+    gets no tagging unless it also passes `tagging_llm`, so scripted models see only the assistant's calls.
+    """
     api_token = api_token or os.environ.get("API_TOKEN")
     if not api_token:
         raise RuntimeError("API_TOKEN is not set")
@@ -98,18 +103,27 @@ def create_app(api_token: str | None = None, db_path: str | None = None,
     provider = provider or make_mock_provider(db)
     if llm is None and not os.environ.get("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY is not set")  # fail the deploy, not every conversation
+    if tagging_llm is None and llm is None:
+        tagging_llm = ClaudeLLM(model=os.environ.get("TAGGING_MODEL", TAGGING_MODEL), effort="low")
+    tagger = NoteTagger(db, tagging_llm) if tagging_llm else None
     worker = Worker(db, Assistant(db, provider, llm or ClaudeLLM()),
                     turn_limit_s=_env_float("TURN_LIMIT_S", 120),
-                    burst_wait_s=_env_float("BURST_WAIT_S", 2) if burst_wait_s is None else burst_wait_s)
+                    burst_wait_s=_env_float("BURST_WAIT_S", 2) if burst_wait_s is None else burst_wait_s,
+                    after_turn=tagger.schedule if tagger else None)
 
     @asynccontextmanager
     async def lifespan(app):
-        """On startup, answer anything a crash or deploy left unanswered; on shutdown, finish running turns."""
+        """On startup, answer anything a crash or deploy left unanswered and tag notes that need it;
+        on shutdown, finish running turns and tagging."""
         recovered = worker.recover()
         if recovered:
             log.info("answering %d conversation(s) left unanswered", recovered)
+        if tagger:
+            tagger.schedule()
         yield
         await worker.wait_idle()
+        if tagger:
+            await tagger.wait_idle()
 
     app = FastAPI(title="Halcyon assistant", lifespan=lifespan)
 
@@ -161,4 +175,5 @@ def create_app(api_token: str | None = None, db_path: str | None = None,
 
     add_recommendation_pages(app)
     app.state.worker = worker
+    app.state.tagger = tagger
     return app

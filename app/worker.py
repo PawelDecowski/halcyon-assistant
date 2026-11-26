@@ -24,8 +24,11 @@ log = logging.getLogger("halcyon.worker")
 
 
 class Worker:
-    def __init__(self, db: Database, assistant: Assistant, turn_limit_s: float = 120, burst_wait_s: float = 2):
+    def __init__(self, db: Database, assistant: Assistant, turn_limit_s: float = 120, burst_wait_s: float = 2,
+                 after_turn=None):
+        """`after_turn(member_id)`, if given, runs once a turn's reply is committed (e.g. tagging new notes)."""
         self.db, self.assistant = db, assistant
+        self.after_turn = after_turn
         self.turn_limit_s, self.burst_wait_s = turn_limit_s, burst_wait_s
         self._tasks: dict[str, asyncio.Task] = {}
 
@@ -95,3 +98,5 @@ class Worker:
             self.db.insert_assistant_message(conversation_id, reply)
             self.db.mark_handled([m["seq"] for m in pending])
             self.db.save_transcript(conversation_id, transcript)
+        if self.after_turn:
+            self.after_turn(member["id"])

@@ -15,6 +15,9 @@ writes catalogue items both follow.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+
 TAG_GROUPS: dict[str, dict[str, str]] = {
     "food and drink": {
         "japanese": "Japanese food or culture.",
@@ -177,3 +180,8 @@ INTEREST_PHRASES = {
 }
 """How each interest reads after "Because you like": "Because you like all things Japanese and walks".
 Phrases avoid "and" inside them, so a list of them still reads clearly."""
+
+
+VOCABULARY_HASH = hashlib.sha256(json.dumps(TAG_GROUPS, sort_keys=True).encode()).hexdigest()[:12]
+"""A hash of every tag and definition. A note tagged under a different hash is tagged again, so
+adding, removing or redefining a tag re-tags old notes on the next start."""
