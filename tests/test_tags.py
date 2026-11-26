@@ -23,3 +23,14 @@ def test_unknown_tags_lists_only_tags_outside_the_vocabulary():
     """Valid tags pass; anything else comes back in order."""
     assert unknown_tags(["jazz", "craftsmanship"]) == []
     assert unknown_tags(["loud", "jazz", "date night"]) == ["loud", "date night"]
+
+
+def test_sample_profiles_use_only_known_tags():
+    """A misspelt tag in a profile would silently match nothing."""
+    from app.recommendations.sample_profiles import SAMPLE_PROFILES
+
+    assert len({p["id"] for p in SAMPLE_PROFILES}) == len(SAMPLE_PROFILES)
+    for profile in SAMPLE_PROFILES:
+        assert unknown_tags(profile["likes"] + profile["dislikes"]) == [], profile["id"]
+        assert not set(profile["likes"]) & set(profile["dislikes"]), profile["id"]
+        assert profile["notes"], profile["id"]
