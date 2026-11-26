@@ -7,6 +7,9 @@ Not part of Halcyon's contract, a review and testing aid behind the same token:
 GET  /members/{member_id}/bookings  -> what the booking system actually holds
 GET  /members/{member_id}/notes     -> what the assistant has learned, including retired notes
 
+Also not part of the contract, open and limited to invented sample members:
+GET  /suggestions, /suggestions/{profile_id}  -> see app/recommendations/page.py
+
 POST only stores the message; the reply is written in the background by
 app/worker.py, which runs the assistant in app/assistant/.
 """
@@ -27,6 +30,7 @@ from .assistant.llm import LLM, ClaudeLLM
 from .booking.interface import BookingProvider
 from .booking.mock.provider import MockBookingProvider
 from .db import Database
+from .recommendations.page import add_recommendation_pages
 from .worker import Worker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -155,5 +159,6 @@ def create_app(api_token: str | None = None, db_path: str | None = None,
         return {"notes": db.query("SELECT id, category, note, active, created_at, retired_at FROM member_notes "
                                   "WHERE member_id = ? ORDER BY created_at", (member_id,))}
 
+    add_recommendation_pages(app)
     app.state.worker = worker
     return app
