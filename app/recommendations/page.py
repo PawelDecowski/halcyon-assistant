@@ -6,8 +6,9 @@ GET /suggestions/{profile_id}?today=...  -> the same, as if today were that date
 
 It serves only the ids in SAMPLE_PROFILES, so it can never show a real
 member's preferences; real members will need their own access. Nothing shown
-is recorded. Each card has a collapsed "why this order" line with the
-suggestion's components, for judging the ranking, not for members.
+is recorded. Each card has a collapsed "why this order" note saying, in words,
+where its points come from and how ties were broken, for judging the
+ranking, not for members.
 """
 from __future__ import annotations
 
@@ -20,8 +21,9 @@ from fastapi.responses import HTMLResponse
 
 from app.booking.mock.experiences import EXPERIENCES
 from app.recommendations.sample_profiles import SAMPLE_PROFILES
-from app.recommendations.scoring import LAST_CHANCE, ONE_OFF, Suggestion, band, recommend
-from app.recommendations.tags import INTEREST_PHRASES, QUALITY_PHRASES
+from app.recommendations.scoring import (ANY_DAY, DAY_TRIP, FAR, LAST_CHANCE, LOCAL, NEAR, OCCASIONAL, ONE_OFF,
+                                         RARE, Suggestion, band, recommend)
+from app.recommendations.tags import INTEREST_PHRASES, QUALITY_PHRASES, tag_weight
 
 LONDON = ZoneInfo("Europe/London")
 PROFILES = {profile["id"]: profile for profile in SAMPLE_PROFILES}
@@ -50,6 +52,7 @@ a { color: var(--accent); }
 .badge { display: inline-block; background: var(--badge); color: var(--accent); border-radius: 999px;
          padding: 1px 10px; font-size: 0.8rem; font-weight: 600; margin-left: 6px; }
 details { margin-top: 6px; font-size: 0.85rem; color: var(--muted); }
+details p { margin: 4px 0; }
 summary { cursor: pointer; }
 ul.notes { padding-left: 18px; margin: 6px 0; }
 form { margin: 12px 0; font-size: 0.9rem; }
@@ -68,28 +71,28 @@ def _tag_words(tags: list[str]) -> str:
     return ", ".join(INTEREST_PHRASES.get(tag) or QUALITY_PHRASES[tag] for tag in tags) or "nothing"
 
 
-def _how_far_ahead(days: int) -> str:
-    """A number of days in words: 0 -> "today", 10 -> "10 days away", 45 -> "6 weeks away", 210 -> "7 months away"."""
-    if days == 0:
-        return "today"
-    if days < 14:
-        return f"{days} day{'s' if days > 1 else ''} away"
-    if days < 60:
-        return f"{round(days / 7)} weeks away"
-    return f"{round(days / 30.4)} months away"
+BAND_WORDS = {LOCAL: "in London", DAY_TRIP: "a day trip, up to 3 hours away",
+              NEAR: "up to 5 hours away", FAR: "more than 5 hours away"}
+URGENCY_WORDS = {ONE_OFF: "a one-off", LAST_CHANCE: "in its last few dates",
+                 RARE: "rare, with fewer than 10 dates a year", OCCASIONAL: "on occasionally, 10 to 49 dates a year",
+                 ANY_DAY: "available most weeks"}
 
 
-def _why_this_order(suggestion: Suggestion) -> str:
-    """The components, split into what decides the order today and what doesn't yet, each with its source.
+def _why_this_order(suggestion: Suggestion) -> list[str]:
+    """Why the card is where it is, in words: where its points come from, then how ties are broken.
 
-    "Order: match 1.0 → nearness 0.7 (day trip) → urgency 1.0 (one-off) → date ·
-     Not used yet: scale 1.0 (scale 3), soonness 0.0 (7 months away)"
+    ["2.5 points from your likes: jazz 1.0, wine 1.0, intimate 0.5 (interests count 1, qualities 0.5).",
+     "Among items with equal points: nearer first (this is in London), then rarer dates (this is on
+      occasionally, 10 to 49 dates a year), then sooner (next on Sunday 29 November)."]
+    Scale and soonness are left out: they don't affect the order until a weighted score is used.
     """
-    c = suggestion.components
-    return (f"Order: match {c['match']:.1f} → nearness {c['nearness']:.1f} ({band(suggestion.item)}) → "
-            f"urgency {c['urgency']:.1f} ({suggestion.urgency}) → date · "
-            f"Not used yet: scale {c['scale']:.1f} (scale {suggestion.item['scale']}), "
-            f"soonness {c['soonness']:.1f} ({_how_far_ahead(suggestion.days_ahead)})")
+    points = ", ".join(f"{INTEREST_PHRASES.get(tag) or QUALITY_PHRASES[tag]} {tag_weight(tag):.1f}"
+                       for tag in suggestion.shared)
+    day = suggestion.next_date
+    return [f"{suggestion.score:.1f} points from your likes: {points} (interests count 1, qualities 0.5).",
+            f"Among items with equal points: nearer first (this is {BAND_WORDS[band(suggestion.item)]}), "
+            f"then rarer dates (this is {URGENCY_WORDS[suggestion.urgency]}), "
+            f"then sooner (next on {day.strftime('%A')} {day.day} {day.strftime('%B')})."]
 
 
 def _card(rank: int, suggestion: Suggestion) -> str:
@@ -102,7 +105,7 @@ def _card(rank: int, suggestion: Suggestion) -> str:
 <p>{escape(item["description"])}</p>
 <div class="reason">{escape(suggestion.reason)}</div>
 <div class="meta">{escape(suggestion.pattern)}</div>
-<details><summary>Why this order</summary>{escape(_why_this_order(suggestion))}</details>
+<details><summary>Why this order</summary>{"".join(f"<p>{escape(line)}</p>" for line in _why_this_order(suggestion))}</details>
 </div>"""
 
 

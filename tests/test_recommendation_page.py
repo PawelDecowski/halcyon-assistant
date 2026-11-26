@@ -46,8 +46,8 @@ def test_a_bad_date_is_refused(tmp_path):
         assert c.get("/suggestions/profile-jazz-and-wine?today=tomorrow").status_code == 422
 
 
-def test_why_this_order_shows_each_value_with_its_source():
-    """Values always have one decimal, and say where they come from."""
+def test_why_this_order_explains_the_points_and_the_tie_breaks_in_words():
+    """The points are broken down by tag; the tie-breaks say what they mean for this item."""
     from datetime import date
 
     from app.booking.mock.experiences import EXPERIENCES
@@ -55,7 +55,9 @@ def test_why_this_order_shows_each_value_with_its_source():
     from app.recommendations.scoring import recommend
 
     paddock = next(i for i in EXPERIENCES if i["id"] == "star-rafe-okonjo-paddock")
-    [suggestion] = recommend(["motorsport"], [], [paddock], date(2026, 11, 26))
-    assert _why_this_order(suggestion) == (
-        "Order: match 1.0 → nearness 0.7 (day trip) → urgency 1.0 (one-off) → date · "
-        "Not used yet: scale 1.0 (scale 3), soonness 0.0 (8 months away)")
+    [suggestion] = recommend(["motorsport", "special-occasion"], [], [paddock], date(2026, 11, 26))
+    assert _why_this_order(suggestion) == [
+        "1.5 points from your likes: motor racing 1.0, one for a special occasion 0.5 "
+        "(interests count 1, qualities 0.5).",
+        "Among items with equal points: nearer first (this is a day trip, up to 3 hours away), "
+        "then rarer dates (this is a one-off), then sooner (next on Saturday 17 July)."]
